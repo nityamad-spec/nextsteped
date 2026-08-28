@@ -41,6 +41,7 @@ const NewCoursePage = () => {
   const [courseName, setCourseName] = useState("");
   const [courseCode, setCourseCode] = useState("");
   const [term, setTerm] = useState("");
+  const [courseType, setCourseType] = useState<"academic" | "employment" | "">("");
   const [graduationYear, setGraduationYear] = useState("");
   const [learningObjective, setLearningObjective] = useState("");
   const [saving, setSaving] = useState(false);
@@ -56,6 +57,7 @@ const NewCoursePage = () => {
     courseName.trim() &&
     courseCode.trim() &&
     term &&
+    courseType &&
     graduationYear &&
     learningObjective.trim();
 
@@ -72,6 +74,7 @@ const NewCoursePage = () => {
           name: courseName.trim(),
           course_code: courseCode.trim(),
           term,
+          course_type: courseType || "academic",
           graduation_year: [graduationYear],
           objectives: learningObjective.split("\n").filter(Boolean),
         })
@@ -195,6 +198,25 @@ const NewCoursePage = () => {
                     </Select>
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Course Type</Label>
+                  <Select value={courseType} onValueChange={(v) => setCourseType(v as any)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select course type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="academic">Academic Course</SelectItem>
+                      <SelectItem value="employment">Employment Pathway</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Employment pathway courses get a workplace-readiness diagnostic and a Soft Skills
+                    module. This cannot be changed after the course is created.
+                  </p>
+                </div>
+
+
 
                 <div className="space-y-2">
                   <Label htmlFor="objectives">Learning Objectives</Label>

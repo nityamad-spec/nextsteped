@@ -49,6 +49,7 @@ interface CourseRow {
   enrollment_open: boolean;
   published: boolean;
   coding_access_status: string;
+  course_type: string;
   created_at: string;
   teacher_id: string;
   teacher_name: string;
@@ -147,7 +148,7 @@ const AdminCourses = () => {
   const loadCourses = async () => {
     const { data: coursesData } = await supabase
       .from("courses")
-      .select("id, name, course_code, term, enrollment_code, enrollment_open, published, coding_access_status, created_at, teacher_id");
+      .select("id, name, course_code, term, enrollment_code, enrollment_open, published, coding_access_status, course_type, created_at, teacher_id");
 
     if (!coursesData) {
       setLoading(false);
@@ -193,6 +194,7 @@ const AdminCourses = () => {
         enrollment_open: c.enrollment_open,
         published: c.published,
         coding_access_status: c.coding_access_status ?? "none",
+        course_type: c.course_type ?? "academic",
         created_at: c.created_at,
         teacher_id: c.teacher_id,
         teacher_name: profileMap[c.teacher_id]?.name || "Unknown",
@@ -462,6 +464,11 @@ const AdminCourses = () => {
                         <Badge variant={c.published ? "default" : "secondary"} className="text-[10px]">
                           {c.published ? "Published" : "Draft"}
                         </Badge>
+                        {c.course_type === "employment" && (
+                          <Badge variant="outline" className="text-[10px] border-primary/40 text-primary bg-primary/5">
+                            Employment pathway
+                          </Badge>
+                        )}
                         <Badge variant={c.enrollment_open ? "outline" : "secondary"} className="text-[10px]">
                           {c.enrollment_open ? "Open" : "Closed"}
                         </Badge>

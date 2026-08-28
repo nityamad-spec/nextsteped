@@ -14,9 +14,11 @@ import {
   CircleDot,
   Layers,
   FlaskConical,
+  Sparkles,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
+import { useCourseType } from "@/hooks/useCourseType";
 import { useTeacherNavPermissions, PROJECT_LAB_SETUP_PATH } from "@/hooks/useTeacherNavPermissions";
 import { supabase } from "@/integrations/supabase/client";
 // lesson plan completion is derived from the courses row, not storage
@@ -39,6 +41,7 @@ const CARDS: CardDef[] = [
   { id: "concept-review", title: "Concept Review", description: "Review concepts extracted from your materials before generating the lesson plan.", icon: Layers, path: "/teacher/setup/concept-review" },
   { id: "lesson-plan", title: "Generate Lesson Plan", description: "Generate a structured weekly lesson plan based on your confirmed concepts.", icon: ClipboardList, path: "/teacher/setup/lesson-plan" },
   { id: "project-lab", title: "Project Lab", description: "Optional. Author hands-on labs that appear in your students' Project Lab tab.", icon: FlaskConical, path: "/teacher/setup/project-lab", optional: true },
+  { id: "soft-skills", title: "Soft Skills", description: "Employment pathway only. Author workplace-readiness modules for your students' Learning Path.", icon: Sparkles, path: "/teacher/setup/soft-skills", optional: true },
   { id: "diagnostic", title: "Approve Diagnostic Quiz", description: "Review and approve the AI-generated diagnostic quiz for your students.", icon: Brain, path: "/teacher/setup/diagnostic" },
   { id: "exam-mode", title: "Exam Mode Settings", description: "Set up and customise the exam mode experience for your students.", icon: GraduationCap, path: "/teacher/setup/exam-mode" },
   { id: "enrollment", title: "Enrollment & Course Settings", description: "Configure your course schedule, sections, enrollment code, and student roster.", icon: UserPlus, path: "/teacher/setup/enrollment" },
@@ -74,11 +77,13 @@ const CourseSetup = () => {
   const { user } = useAuth();
   const courseId = useTeacherCourseId();
   const { ready: permReady, isExactlyGranted } = useTeacherNavPermissions();
+  const { ready: typeReady, isEmployment } = useCourseType(courseId);
   const [statuses, setStatuses] = useState<Record<string, Status>>({
     upload: "Not Started",
     "concept-review": "Not Started",
     "lesson-plan": "Not Started",
     "project-lab": "Not Started",
+    "soft-skills": "Not Started",
     diagnostic: "Not Started",
     "exam-mode": "Not Started",
     enrollment: "Not Started",
@@ -94,6 +99,7 @@ const CourseSetup = () => {
       "concept-review": "Not Started",
       "lesson-plan": "Not Started",
       "project-lab": "Not Started",
+      "soft-skills": "Not Started",
       diagnostic: "Not Started",
         "exam-mode": "Not Started",
       enrollment: "Not Started",
@@ -106,6 +112,7 @@ const CourseSetup = () => {
         "concept-review": "Not Started",
         "lesson-plan": "Not Started",
         "project-lab": "Not Started",
+        "soft-skills": "Not Started",
         diagnostic: "Not Started",
             "exam-mode": "Not Started",
         enrollment: "Not Started",
@@ -183,6 +190,15 @@ const CourseSetup = () => {
         if ((labCount ?? 0) > 0) next["project-lab"] = "Complete";
         else if (opened["project-lab"]) next["project-lab"] = "In Progress";
 
+        // Soft Skills (employment pathway, optional): Complete when at least one module is published.
+        const { count: softCount } = await supabase
+          .from("course_soft_skills")
+          .select("id", { count: "exact", head: true })
+          .eq("course_id", courseId)
+          .eq("published", true);
+        if ((softCount ?? 0) > 0) next["soft-skills"] = "Complete";
+        else if (opened["soft-skills"]) next["soft-skills"] = "In Progress";
+
         // Exam Mode (TA settings)
         const { data: ta } = await supabase
           .from("course_ta_settings")
@@ -217,7 +233,7 @@ const CourseSetup = () => {
       // Backfill or clear `completed_at` in teacher_setup_progress to keep the
       // persisted state in sync with the derived status. Fire-and-forget.
       if (courseId) {
-        const AUTO_COMPLETE_STEPS = ["upload", "concept-review", "lesson-plan", "diagnostic", "exam-mode", "project-lab"];
+        const AUTO_COMPLETE_STEPS = ["upload", "concept-review", "lesson-plan", "diagnostic", "exam-mode", "project-lab", "soft-skills"];
         for (const stepId of AUTO_COMPLETE_STEPS) {
           if (next[stepId] === "Complete" && !completed[stepId]) {
             void markStepCompleted(user.id, stepId, courseId, { source: "CourseSetup.backfill" });
@@ -259,9 +275,13 @@ const CourseSetup = () => {
   };
 
   // The Project Lab step is opt-in per teacher: admins grant it explicitly.
-  const visibleCards = CARDS.filter(
-    (c) => c.id !== "project-lab" || (permReady && isExactlyGranted(PROJECT_LAB_SETUP_PATH)),
-  );
+  const visibleCards = CARDS.filter((c) => {
+    // The Project Lab step is opt-in per teacher: admins grant it explicitly.
+    if (c.id === "project-lab") return permReady && isExactlyGranted(PROJECT_LAB_SETUP_PATH);
+    // Soft Skills exists only for employment-pathway courses.
+    if (c.id === "soft-skills") return typeReady && isEmployment;
+    return true;
+  });
 
   return (
     <div className="p-6 md:p-8">

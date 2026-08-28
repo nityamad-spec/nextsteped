@@ -18,6 +18,7 @@ import UnitPathwayCard from "@/components/student/UnitPathwayCard";
 import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
 import { useUnitProgress } from "@/hooks/useUnitProgress";
 import { fetchPublishedExercises, type PublishedCodingExercise } from "@/lib/codingExercises";
+import SoftSkillsUnitCard, { type SoftSkillsModuleView } from "@/components/student/SoftSkillsUnitCard";
 
 interface QuizResultRow {
   quiz_day: number | string;
@@ -261,6 +262,38 @@ const StudentLearningPath = () => {
     };
   }, [enrolledCourseId, codingApproved, hasCodingUnits, user?.id]);
 
+  // Published Soft Skills modules (employment-pathway courses only). RLS keeps
+  // this empty for academic courses, so no course-type lookup is needed here.
+  const [softSkills, setSoftSkills] = useState<SoftSkillsModuleView[]>([]);
+  useEffect(() => {
+    if (!enrolledCourseId) {
+      setSoftSkills([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("course_soft_skills")
+        .select("id, title, summary, outcomes, activities")
+        .eq("course_id", enrolledCourseId)
+        .eq("published", true)
+        .order("position", { ascending: true });
+      if (cancelled || error) return;
+      setSoftSkills(
+        (data ?? []).map((row: any) => ({
+          id: row.id,
+          title: row.title ?? "",
+          summary: row.summary ?? "",
+          outcomes: Array.isArray(row.outcomes) ? row.outcomes : [],
+          activities: Array.isArray(row.activities) ? row.activities : [],
+        })),
+      );
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [enrolledCourseId]);
+
   // Voided (browser-lock) attempts per week. One void is forgiven; a second
   // locks the week until the professor resets it.
   const [voidCounts, setVoidCounts] = useState<Record<number, number>>({});
@@ -449,6 +482,12 @@ const StudentLearningPath = () => {
               />
             );
           })
+        )}
+        {softSkills.length > 0 && (
+          <SoftSkillsUnitCard
+            modules={softSkills}
+            onStudy={(title) => goToStudy(title, "start")}
+          />
         )}
       </motion.div>
 

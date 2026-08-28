@@ -158,6 +158,8 @@ interface RunCtx {
   // Number of in-callGateway transient-error retries. Single-tier regen runs
   // set this to 1 so the worst-case wall-clock fits inside the deadline.
   gatewayRetries: number;
+  /** "employment" pathway courses get a workplace-readiness framing. */
+  courseType: "academic" | "employment";
 }
 
 type DgrStatus = "pending" | "calling_model" | "validating" | "done" | "failed" | "skipped";
@@ -661,7 +663,19 @@ async function callGatewaySingle(
     .map(([k, v]) => `  - ${FORMAT_LABELS[k]}: ${v}`)
     .join("\n");
 
-  const systemPrompt = `You are an expert assessment designer creating diagnostic quiz questions for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier} tier diagnostic questions.
+  // Employment-pathway courses diagnose workplace readiness, not academic
+  // coverage — the concept quota still governs what is assessed.
+  const pathwayFraming = ctx.courseType === "employment"
+    ? `
+
+EMPLOYMENT PATHWAY CONTEXT — this is a job-readiness programme, not an academic course:
+- Frame every question around realistic on-the-job situations: a task from a manager, a client request, a teammate's message, a ticket, a workplace tool or process.
+- Assess applied judgement and workplace-relevant skill (communication, prioritisation, professionalism, tool usage, problem solving) alongside the listed concepts.
+- Avoid textbook phrasing ("which of the following definitions"), academic citation style, and exam-hall abstractions.
+- Keep language plain and role-relevant; assume the learner is preparing to perform the job, not to sit an exam.`
+    : "";
+
+  const systemPrompt = `You are an expert assessment designer creating diagnostic quiz questions for a course titled "${courseName}".${pathwayFraming} Generate exactly ${askFor} ${spec.tier} tier diagnostic questions.
 
 Tier: ${spec.label}
 Target difficulty (0=easy, 1=hard): ${spec.difficulty}
@@ -1383,7 +1397,7 @@ Deno.serve(async (req) => {
     });
 
     const [{ data: course, error: cErr }, { data: concepts }, { data: weeks }] = await Promise.all([
-      admin.from("courses").select("id, name, teacher_id, course_code").eq("id", courseId).maybeSingle(),
+      admin.from("courses").select("id, name, teacher_id, course_code, course_type").eq("id", courseId).maybeSingle(),
       admin.from("concepts").select("id, concept_code, weight").eq("course_id", courseId),
       admin.from("lesson_plan_weeks").select("week_number, week_name, concepts").eq("course_id", courseId).order("week_number"),
     ]);
@@ -1423,6 +1437,8 @@ Deno.serve(async (req) => {
       },
       runId,
       admin,
+      courseType:
+        (course as { course_type?: string }).course_type === "employment" ? "employment" : "academic",
       gatewayRetries,
     };
 

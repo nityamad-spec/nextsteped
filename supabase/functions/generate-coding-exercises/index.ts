@@ -84,6 +84,9 @@ interface GeneratedExercise {
   reference_solution: string;
   standard_test_cases: TestCase[];
   hidden_test_cases: TestCase[];
+  /** Bloom's taxonomy level (1-6) of the cognitive demand of the task. */
+  bloom_level: number;
+  bloom_justification: string | null;
 }
 
 function asStr(v: unknown): string {
@@ -126,6 +129,9 @@ function validateExercise(raw: any): { ok: boolean; issues: string[]; value?: Ge
   const examples = asExamples(raw.examples);
   const standard = asTestCases(raw.standard_test_cases);
   const hidden = asTestCases(raw.hidden_test_cases);
+  const bloomRaw = Number(raw.bloom_level);
+  const bloom_level = Number.isFinite(bloomRaw) ? Math.min(6, Math.max(1, Math.round(bloomRaw))) : 3;
+  const bloom_justification = asStr(raw.bloom_justification) || null;
 
   if (problem_statement.length < 40) issues.push("problem_statement missing or too short");
   if (!input_spec) issues.push("input_spec missing");
@@ -151,6 +157,8 @@ function validateExercise(raw: any): { ok: boolean; issues: string[]; value?: Ge
       reference_solution,
       standard_test_cases: standard,
       hidden_test_cases: hidden,
+      bloom_level,
+      bloom_justification,
     },
   };
 }
@@ -180,6 +188,8 @@ Required content (all via the author_exercise tool):
 - starter_code: a runnable ${opts.language} SKELETON the student starts from — the entry point (main/function signatures) that matches your input_spec/output_spec, with TODO comments marking where logic goes. It must compile/run as-is and must NOT contain any solution logic.
 - reference_solution: complete, idiomatic, runnable ${opts.language} solution. NO placeholder comments.
 - standard_test_cases: 2–4 cases covering the main paths, each {input, expected_output}.
+- bloom_level: integer 1-6 for the cognitive demand of the TASK (1=Remember, 2=Understand, 3=Apply, 4=Analyze, 5=Evaluate, 6=Create). Most coding exercises are 3-4; only assign 5-6 when the student must design, evaluate trade-offs, or create a non-obvious solution.
+- bloom_justification: one sentence (≤ 200 chars) explaining the level you chose.
 - hidden_test_cases: 2–4 EDGE cases (empty input, boundaries, large values, tricky formatting), each {input, expected_output}.
 
 CRITICAL correctness rule: derive every expected_output by mentally executing your own reference_solution on that input. The expected outputs MUST be exactly what your solution prints/returns.
@@ -227,6 +237,8 @@ const AUTHOR_TOOL = {
         },
         starter_code: { type: "string" },
         reference_solution: { type: "string" },
+        bloom_level: { type: "integer", minimum: 1, maximum: 6 },
+        bloom_justification: { type: "string" },
         standard_test_cases: {
           type: "array",
           items: {
@@ -260,6 +272,8 @@ const AUTHOR_TOOL = {
         "examples",
         "starter_code",
         "reference_solution",
+        "bloom_level",
+        "bloom_justification",
         "standard_test_cases",
         "hidden_test_cases",
       ],
@@ -532,6 +546,8 @@ async function run(req: Request): Promise<{ status: number; payload: unknown }> 
     starter_code: ex.starter_code,
     primary_language: language,
     standard_test_cases: ex.standard_test_cases,
+    bloom_level: ex.bloom_level,
+    bloom_justification: ex.bloom_justification,
     published: false,
     teacher_id: userId,
   }));
