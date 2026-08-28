@@ -200,6 +200,25 @@ const NewCoursePage = () => {
                 </div>
 
                 <div className="space-y-2">
+                  <Label>Course Type</Label>
+                  <Select value={courseType} onValueChange={(v) => setCourseType(v as any)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select course type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="academic">Academic Course</SelectItem>
+                      <SelectItem value="employment">Employment Pathway</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    Employment pathway courses get a workplace-readiness diagnostic and a Soft Skills
+                    module. This cannot be changed after the course is created.
+                  </p>
+                </div>
+
+
+
+                <div className="space-y-2">
                   <Label htmlFor="objectives">Learning Objectives</Label>
                   <Textarea
                     id="objectives"
