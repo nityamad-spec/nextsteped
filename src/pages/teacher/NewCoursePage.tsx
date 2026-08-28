@@ -57,6 +57,7 @@ const NewCoursePage = () => {
     courseName.trim() &&
     courseCode.trim() &&
     term &&
+    courseType &&
     graduationYear &&
     learningObjective.trim();
 
