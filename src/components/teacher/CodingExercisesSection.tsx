@@ -72,6 +72,11 @@ interface CodingExercisesSectionProps {
 
 const MAX_PER_RUN = 5;
 
+const BLOOM_NAMES = ["Remember", "Understand", "Apply", "Analyze", "Evaluate", "Create"];
+/** "Bloom 3 · Apply" — the cognitive demand of the exercise. */
+const bloomLabel = (level: number) =>
+  `Bloom ${level}${BLOOM_NAMES[level - 1] ? ` · ${BLOOM_NAMES[level - 1]}` : ""}`;
+
 const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExercisesSectionProps) => {
   const { toast } = useToast();
   const [exercises, setExercises] = useState<CodingExercise[]>([]);
@@ -436,6 +441,15 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
                       <Badge variant="secondary" className="text-[10px]">
                         {languageLabel(ex.language)}
                       </Badge>
+                      {ex.bloom_level != null && (
+                        <Badge
+                          variant="outline"
+                          className="text-[10px]"
+                          title={ex.bloom_justification ?? undefined}
+                        >
+                          {bloomLabel(ex.bloom_level)}
+                        </Badge>
+                      )}
                       {!ex.published && (
                         <Badge variant="outline" className="text-[10px]">
                           Draft
