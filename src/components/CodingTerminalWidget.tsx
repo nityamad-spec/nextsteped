@@ -176,8 +176,9 @@ export default function CodingTerminalWidget({
         </Button>
       </div>
 
-      {/* Body: stacked editor + output */}
-      <div className="flex-1 min-h-0 flex flex-col">
+      {/* Body: editor + output, with optional assistant side panel */}
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row">
+      <div className="flex-1 min-h-0 min-w-0 flex flex-col">
         {/* Exercise problem statement (collapsible) */}
         {hasExercise && (
           <div className="border-b bg-muted/20">
