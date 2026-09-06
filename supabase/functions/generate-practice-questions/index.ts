@@ -43,6 +43,7 @@ import {
   summarizeRejections,
   validateShortAnswer,
 } from "../_shared/question-validation.ts";
+import { buildGenerationContext } from "../_shared/generation-context.ts";
 import {
   DEFAULT_DIAGNOSTIC_MIX,
   allocateFormats,
