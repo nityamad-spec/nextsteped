@@ -183,6 +183,7 @@ export default function TerminalAssistantPanel({
         return;
       }
       sid = created.id;
+      loadedSessionRef.current = sid;
       setSessionId(sid);
     }
 
@@ -232,13 +233,52 @@ export default function TerminalAssistantPanel({
     }
   }, [input, sending, sessionId, messages, courseId, unitLabel, getCodeContext, persistMessage]);
 
+  const activeTitle = sessionId
+    ? sessions.find((s) => s.id === sessionId)?.title ?? "Saved conversation"
+    : null;
+
   return (
     <div className="flex h-full min-h-0 flex-col">
-      <div className="px-3 py-2 text-xs uppercase tracking-wide text-muted-foreground border-b bg-muted/40 flex items-center gap-1.5">
-        <Bot className="h-3.5 w-3.5 text-primary" />
-        Coding assistant
-        <span className="normal-case tracking-normal text-[11px] text-muted-foreground/80 ml-auto">
-          Hints only — practice mode
+      <div className="px-2 py-1.5 text-xs border-b bg-muted/40 flex items-center gap-1">
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button
+              className="flex items-center gap-1.5 min-w-0 flex-1 rounded-md px-1.5 py-1 text-left hover:bg-muted/70 transition-colors"
+              aria-label="Switch conversation"
+            >
+              <Bot className="h-3.5 w-3.5 text-primary shrink-0" />
+              <span className="text-xs font-medium truncate uppercase tracking-wide">
+                {activeTitle ?? "Coding assistant"}
+              </span>
+              <ChevronDown className="h-3 w-3 text-muted-foreground shrink-0" />
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-64">
+            <DropdownMenuItem onClick={startNewConversation} className="gap-2 text-sm">
+              <Plus className="h-3.5 w-3.5" /> New conversation
+            </DropdownMenuItem>
+            {sessions.length > 0 && <DropdownMenuSeparator />}
+            {sessions.length > 0 && (
+              <DropdownMenuLabel className="text-xs">Saved conversations</DropdownMenuLabel>
+            )}
+            {sessions.map((s) => (
+              <DropdownMenuItem
+                key={s.id}
+                onClick={() => switchConversation(s.id)}
+                className="flex flex-col items-start gap-0.5"
+              >
+                <span className={`truncate w-full text-sm ${s.id === sessionId ? "font-semibold" : ""}`}>
+                  {s.title}
+                </span>
+                <span className="text-[11px] text-muted-foreground">
+                  {new Date(s.updated_at).toLocaleDateString()}
+                </span>
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+        <span className="tracking-normal text-[11px] text-muted-foreground/80 shrink-0">
+          Hints only
         </span>
       </div>
 
