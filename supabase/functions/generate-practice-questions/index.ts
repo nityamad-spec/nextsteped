@@ -187,7 +187,7 @@ Fallback defaults when the student is silent or vague:
 
 Hard rules: clamp count to 1..10; never include any question type other than "mcq" or "true_false"; output valid JSON and nothing else.`;
 
-const SYSTEM_PROMPT_GENERATE_TEMPLATE = `You are a practice-question generator for the university course "{course_name}" (code: {course_code}). Write every question, option, answer, and explanation in language "{target_language}". Keep concept_codes and the "topic" field unchanged regardless of language.
+const SYSTEM_PROMPT_GENERATE_TEMPLATE = `{course_material_excerpts}You are a practice-question generator for the university course "{course_name}" (code: {course_code}). Write every question, option, answer, and explanation in language "{target_language}". Keep concept_codes and the "topic" field unchanged regardless of language.
 
 You are given:
 (a) parsed INTENT
@@ -751,6 +751,14 @@ Deno.serve(async (req) => {
       };
     };
 
+    // One retrieval for the whole request, shared across generation rounds.
+    const ragContext = await buildGenerationContext({
+      courseId,
+      conceptCodes: allowedCodes,
+      courseName,
+    });
+    console.log(`[practice] grounding sources=${ragContext.sources.length} empty=${ragContext.isEmpty}`);
+
     // ---- Stage 2: Generation (with bounded retry) ----
     const buildGenSystem = (extraHint: string, avoidStems: Accepted[]) => {
       const avoidJson = JSON.stringify([
@@ -759,6 +767,7 @@ Deno.serve(async (req) => {
       ].slice(0, 60));
       const base = renderTemplate(SYSTEM_PROMPT_GENERATE_TEMPLATE, {
         format_quota_line: formatQuotaLine,
+        course_material_excerpts: ragContext.isEmpty ? "" : `${ragContext.contextBlock}\n\n`,
         course_name: courseName,
         course_code: courseCode,
         target_language: intent.language,
