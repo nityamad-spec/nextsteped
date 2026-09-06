@@ -8,6 +8,13 @@
       "when": 1788655172564,
       "tag": "0000_allow_terminal_chat_mode",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788658773186,
+      "tag": "0001_add_question_source_refs",
+      "breakpoints": true
     }
   ]
 }

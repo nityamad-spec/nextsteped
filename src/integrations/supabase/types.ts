@@ -166,6 +166,7 @@ export type Database = {
           question_text: string
           question_type: string
           quiz_day: number | null
+          source_refs: Json | null
           teacher_id: string
           tier: string
           topic: string
@@ -196,6 +197,7 @@ export type Database = {
           question_text: string
           question_type?: string
           quiz_day?: number | null
+          source_refs?: Json | null
           teacher_id: string
           tier?: string
           topic: string
@@ -226,6 +228,7 @@ export type Database = {
           question_text?: string
           question_type?: string
           quiz_day?: number | null
+          source_refs?: Json | null
           teacher_id?: string
           tier?: string
           topic?: string
@@ -1538,6 +1541,7 @@ export type Database = {
           item_code: string
           model_answer: string | null
           options: Json | null
+          source_refs: Json | null
           teacher_id: string
           tier: string
           topic: string | null
@@ -1562,6 +1566,7 @@ export type Database = {
           item_code: string
           model_answer?: string | null
           options?: Json | null
+          source_refs?: Json | null
           teacher_id: string
           tier?: string
           topic?: string | null
@@ -1586,6 +1591,7 @@ export type Database = {
           item_code?: string
           model_answer?: string | null
           options?: Json | null
+          source_refs?: Json | null
           teacher_id?: string
           tier?: string
           topic?: string | null

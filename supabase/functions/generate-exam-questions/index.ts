@@ -40,6 +40,16 @@ import {
   dedupWithin,
   auditBatchQuotas,
 } from "../_shared/question-validation.ts";
+import {
+  EMPTY_GENERATION_CONTEXT,
+  buildGenerationContext,
+  resolveSourceRefs,
+  SOURCE_LABEL_SCHEMA_PROPERTY,
+  type GenerationContext,
+} from "../_shared/generation-context.ts";
+
+/** Course-material grounding, built once per request and shared by all batches. */
+let ragContext: GenerationContext = EMPTY_GENERATION_CONTEXT;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -71,6 +81,7 @@ interface GeneratedQuestion {
   bloom_level: number;
   explanation: string;
   topic: string;
+  source_label?: string | null;
 }
 
 interface BatchSpec {
@@ -289,6 +300,7 @@ function validateQuestion(
       answer, model_answer, answer_max_words,
       difficulty_estimate: diff.value, bloom_level: bloom.value,
       explanation: explCheck.value, topic,
+      source_label: typeof (q as any)?.source_label === "string" ? (q as any).source_label : null,
     },
   };
 }
@@ -335,9 +347,12 @@ async function generateBatch(
         : ""
     }`;
 
+    const materialBlock = ragContext.isEmpty ? "" : `\n${ragContext.contextBlock}\n`;
+
     const systemPrompt = `You are an expert assessment designer for the course "${courseName}".
 Generate exactly ${askFor} exam questions for a final exam (recommended duration: ${lengthMin} minutes).
 
+${materialBlock}
 ALLOWED FORMATS: ${formatList}
 
 DIFFICULTY MIX for this batch (counts): easy=${batch.difficulty.easy}, medium=${batch.difficulty.medium}, hard=${batch.difficulty.hard}.
@@ -395,6 +410,7 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
                       bloom_level: { type: "integer", minimum: 1, maximum: 4 },
                       explanation: { type: "string" },
                       topic: { type: "string" },
+                      ...SOURCE_LABEL_SCHEMA_PROPERTY,
                     },
                     required: ["content_text", "format", "answer", "difficulty_estimate", "bloom_level", "explanation", "topic"],
                   },
@@ -650,6 +666,14 @@ Deno.serve(async (req) => {
         const conceptByCode: Record<string, ConceptRow> = {};
         for (const c of concepts) conceptByCode[c.concept_code] = c;
 
+        // One retrieval for the whole run, shared by every batch + residual pass.
+        ragContext = await buildGenerationContext({
+          courseId,
+          conceptCodes: concepts.map((c) => c.concept_code),
+          courseName: course.name ?? undefined,
+        });
+        console.log(`[exam-questions] grounding sources=${ragContext.sources.length} empty=${ragContext.isEmpty}`);
+
         // Allocate questions per concept by weight (largest-remainder)
         const weights: Record<string, number> = {};
         for (const c of concepts) weights[c.concept_code] = Math.max(0, c.weight);
@@ -782,6 +806,7 @@ Deno.serve(async (req) => {
             difficulty_estimate: q.difficulty_estimate,
             bloom_level: q.bloom_level,
             item_code: `exam-${examId.slice(0, 8)}-${i}`,
+            source_refs: resolveSourceRefs(q.source_label, ragContext),
           };
         });
 
