@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Terminal, Play, RotateCcw, X, Loader2, ChevronDown, ChevronUp, FileCode2 } from "lucide-react";
+import { Terminal, Play, RotateCcw, X, Loader2, ChevronDown, ChevronUp, FileCode2, Bot } from "lucide-react";
+import TerminalAssistantPanel from "@/components/student/TerminalAssistantPanel";
 
 // TODO(judge0): This approved-languages list will later be sourced from a
 // professor-controlled setting (likely course_ta_settings) so each course
@@ -31,6 +32,16 @@ interface CodingTerminalWidgetProps {
   /** When set, a collapsible problem-statement panel is shown above the editor. */
   exerciseTitle?: string | null;
   exerciseStatement?: string | null;
+  /** Freeform practice only: enables the Socratic coding-assistant side panel. */
+  assistantEnabled?: boolean;
+  /** Course the terminal session belongs to (required when assistantEnabled). */
+  courseId?: string | null;
+  /** Resume a previous terminal-help conversation. */
+  assistantSessionId?: string | null;
+  /** Unit label for new assistant session titles (e.g. "Unit 4"). */
+  unitLabel?: string | null;
+  /** Concept names covered by this practice session (assistant context). */
+  concepts?: string[];
 }
 
 export default function CodingTerminalWidget({
@@ -39,6 +50,11 @@ export default function CodingTerminalWidget({
   initialLanguage,
   exerciseTitle,
   exerciseStatement,
+  assistantEnabled = false,
+  courseId,
+  assistantSessionId,
+  unitLabel,
+  concepts,
 }: CodingTerminalWidgetProps) {
   const initialLangId = toTerminalLanguage(initialLanguage);
   const [languageId, setLanguageId] = useState<string>(initialLangId);
@@ -55,7 +71,13 @@ export default function CodingTerminalWidget({
   const [output, setOutput] = useState<string>("");
   const [isRunning, setIsRunning] = useState(false);
   const [showStatement, setShowStatement] = useState(hasExercise);
+  const [showAssistant, setShowAssistant] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Latest values for the assistant's per-send context snapshot.
+  const codeRef = useRef(code);
+  codeRef.current = code;
+  const outputRef = useRef(output);
+  outputRef.current = output;
 
   const handleLanguageChange = (id: string) => {
     const next = APPROVED_LANGUAGES.find((l) => l.id === id);
@@ -138,13 +160,25 @@ export default function CodingTerminalWidget({
           {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
           {isRunning ? "Running…" : "Run"}
         </Button>
+        {assistantEnabled && courseId && (
+          <Button
+            variant={showAssistant ? "secondary" : "outline"}
+            size="sm"
+            className="h-9 gap-2"
+            onClick={() => setShowAssistant((v) => !v)}
+            aria-pressed={showAssistant}
+          >
+            <Bot className="h-4 w-4" /> <span className="hidden sm:inline">Assistant</span>
+          </Button>
+        )}
         <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onClose} aria-label="Close terminal">
           <X className="h-5 w-5" />
         </Button>
       </div>
 
-      {/* Body: stacked editor + output */}
-      <div className="flex-1 min-h-0 flex flex-col">
+      {/* Body: editor + output, with optional assistant side panel */}
+      <div className="flex-1 min-h-0 flex flex-col md:flex-row">
+      <div className="flex-1 min-h-0 min-w-0 flex flex-col">
         {/* Exercise problem statement (collapsible) */}
         {hasExercise && (
           <div className="border-b bg-muted/20">
@@ -207,6 +241,24 @@ export default function CodingTerminalWidget({
             </pre>
           </div>
         </div>
+      </div>
+
+      {/* Assistant side panel (freeform practice only) */}
+      {assistantEnabled && courseId && showAssistant && (
+        <div className="h-[45%] md:h-auto md:w-[380px] shrink-0 border-t md:border-t-0 md:border-l flex flex-col min-h-0">
+          <TerminalAssistantPanel
+            courseId={courseId}
+            resumeSessionId={assistantSessionId}
+            unitLabel={unitLabel}
+            getCodeContext={() => ({
+              language: language.label,
+              code: codeRef.current,
+              output: outputRef.current,
+              concepts: concepts ?? [],
+            })}
+          />
+        </div>
+      )}
       </div>
     </div>
   );

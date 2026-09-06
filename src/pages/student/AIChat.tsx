@@ -247,6 +247,11 @@ const AIChat = () => {
     exerciseTitle?: string | null;
     exerciseStatement?: string | null;
   } | null>(null);
+  // Freeform-practice assistant: unit the terminal was opened for, a prior
+  // terminal-help session to resume, and saved terminal-help sessions.
+  const [terminalUnit, setTerminalUnit] = useState<number | null>(null);
+  const [terminalResumeSessionId, setTerminalResumeSessionId] = useState<string | null>(null);
+  const [terminalSessions, setTerminalSessions] = useState<{ id: string; title: string; updated_at: string }[]>([]);
 
   const {
     sessions: chats,
@@ -523,6 +528,8 @@ const AIChat = () => {
         exerciseTitle: exercise?.title ?? null,
         exerciseStatement: exercise?.problem_statement ?? null,
       });
+      setTerminalUnit(unit > 0 ? unit : null);
+      setTerminalResumeSessionId(null);
       setShowTerminal(true);
       navigate("/student/chat", { replace: true });
       // Log the terminal session — counts as practice activity for the unit.
@@ -550,6 +557,27 @@ const AIChat = () => {
       }
     })();
   }, [codingReady, codingApproved, enrolledCourseId, user, lessonPlan]);
+
+  // Saved terminal-help conversations (mode='terminal') for the history sidebar.
+  // Re-runs when the terminal closes so a freshly created session appears.
+  useEffect(() => {
+    if (!user || !enrolledCourseId || !codingApproved) {
+      setTerminalSessions([]);
+      return;
+    }
+    supabase
+      .from("chat_sessions")
+      .select("id, title, updated_at")
+      .eq("user_id", user.id)
+      .eq("course_id", enrolledCourseId)
+      .eq("mode", "terminal")
+      .order("updated_at", { ascending: false })
+      .limit(30)
+      .then(({ data, error }) => {
+        if (error) console.error("[AIChat] terminal sessions load failed", error);
+        else setTerminalSessions(data ?? []);
+      });
+  }, [user, enrolledCourseId, codingApproved, showTerminal]);
 
   // Handle ?newchat=true param
   useEffect(() => {
@@ -1433,16 +1461,29 @@ const AIChat = () => {
   }
 
   if (showTerminal && codingApproved) {
+    // The assistant panel is freeform-practice only: any terminal opened with
+    // an exercise problem statement gets the plain two-pane layout.
+    const isFreeformTerminal = !terminalContext?.exerciseTitle && !terminalContext?.exerciseStatement;
+    const unitConcepts = terminalUnit
+      ? (lessonPlan.find((w) => w.day === terminalUnit)?.concepts ?? []).map((c) => c.name)
+      : [];
     return (
       <CodingTerminalWidget
         onClose={() => {
           setShowTerminal(false);
           setTerminalContext(null);
+          setTerminalUnit(null);
+          setTerminalResumeSessionId(null);
         }}
         initialCode={terminalContext?.initialCode}
         initialLanguage={terminalContext?.initialLanguage}
         exerciseTitle={terminalContext?.exerciseTitle}
         exerciseStatement={terminalContext?.exerciseStatement}
+        assistantEnabled={isFreeformTerminal}
+        courseId={enrolledCourseId}
+        assistantSessionId={terminalResumeSessionId}
+        unitLabel={terminalUnit ? `Unit ${terminalUnit}` : null}
+        concepts={unitConcepts}
       />
     );
   }
@@ -1563,14 +1604,14 @@ const AIChat = () => {
             {(() => {
               const displayChats = chats.filter(hasMeaningfulHistory);
               
-              if (mode === "learning" && (practiceHistory.length > 0 || displayChats.length > 0)) {
+              if (mode === "learning" && (practiceHistory.length > 0 || displayChats.length > 0 || terminalSessions.length > 0)) {
                 return (
                   <>
                     {displayChats.length > 0 && (
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">Chat Sessions</p>
                     )}
                     {displayChats.length === 0 ? (
-                      practiceHistory.length === 0 && (
+                      practiceHistory.length === 0 && terminalSessions.length === 0 && (
                         <p className="text-sm text-muted-foreground text-center py-4">No study history yet</p>
                       )
                     ) : (
@@ -1588,6 +1629,33 @@ const AIChat = () => {
                           </div>
                         </button>
                       ))
+                    )}
+                    {terminalSessions.length > 0 && (
+                      <>
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mt-4 mb-2">Terminal Help</p>
+                        {terminalSessions.map((s) => (
+                          <button
+                            key={s.id}
+                            onClick={() => {
+                              setTerminalResumeSessionId(s.id);
+                              setTerminalContext(null);
+                              setTerminalUnit(null);
+                              setShowTerminal(true);
+                              setShowHistory(false);
+                              setAssessmentActive(false);
+                            }}
+                            className="w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-sidebar-accent/50"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Terminal className="h-3.5 w-3.5 text-primary shrink-0" />
+                              <p className="truncate">{s.title}</p>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 ml-5.5">
+                              <span>{new Date(s.updated_at).toLocaleDateString()}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </>
                     )}
                   </>
                 );
@@ -1652,7 +1720,7 @@ const AIChat = () => {
           </div>
           {mode === "learning" && codingApproved && (
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowTerminal(true)}>
+              <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => { setTerminalContext(null); setTerminalUnit(null); setTerminalResumeSessionId(null); setShowTerminal(true); }}>
                 <Terminal className="h-4 w-4" /> <span className="hidden sm:inline">Code</span>
               </Button>
             </div>
