@@ -242,6 +242,24 @@ export default function CodingTerminalWidget({
           </div>
         </div>
       </div>
+
+      {/* Assistant side panel (freeform practice only) */}
+      {assistantEnabled && courseId && showAssistant && (
+        <div className="h-[45%] md:h-auto md:w-[380px] shrink-0 border-t md:border-t-0 md:border-l flex flex-col min-h-0">
+          <TerminalAssistantPanel
+            courseId={courseId}
+            resumeSessionId={assistantSessionId}
+            unitLabel={unitLabel}
+            getCodeContext={() => ({
+              language: language.label,
+              code: codeRef.current,
+              output: outputRef.current,
+              concepts: concepts ?? [],
+            })}
+          />
+        </div>
+      )}
+      </div>
     </div>
   );
 }
