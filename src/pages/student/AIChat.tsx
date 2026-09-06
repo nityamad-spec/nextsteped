@@ -1604,14 +1604,14 @@ const AIChat = () => {
             {(() => {
               const displayChats = chats.filter(hasMeaningfulHistory);
               
-              if (mode === "learning" && (practiceHistory.length > 0 || displayChats.length > 0)) {
+              if (mode === "learning" && (practiceHistory.length > 0 || displayChats.length > 0 || terminalSessions.length > 0)) {
                 return (
                   <>
                     {displayChats.length > 0 && (
                       <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mb-2">Chat Sessions</p>
                     )}
                     {displayChats.length === 0 ? (
-                      practiceHistory.length === 0 && (
+                      practiceHistory.length === 0 && terminalSessions.length === 0 && (
                         <p className="text-sm text-muted-foreground text-center py-4">No study history yet</p>
                       )
                     ) : (
@@ -1629,6 +1629,33 @@ const AIChat = () => {
                           </div>
                         </button>
                       ))
+                    )}
+                    {terminalSessions.length > 0 && (
+                      <>
+                        <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1 mt-4 mb-2">Terminal Help</p>
+                        {terminalSessions.map((s) => (
+                          <button
+                            key={s.id}
+                            onClick={() => {
+                              setTerminalResumeSessionId(s.id);
+                              setTerminalContext(null);
+                              setTerminalUnit(null);
+                              setShowTerminal(true);
+                              setShowHistory(false);
+                              setAssessmentActive(false);
+                            }}
+                            className="w-full rounded-lg px-3 py-2.5 text-left text-sm transition-colors hover:bg-sidebar-accent/50"
+                          >
+                            <div className="flex items-center gap-2">
+                              <Terminal className="h-3.5 w-3.5 text-primary shrink-0" />
+                              <p className="truncate">{s.title}</p>
+                            </div>
+                            <div className="flex items-center gap-2 text-xs text-muted-foreground mt-0.5 ml-5.5">
+                              <span>{new Date(s.updated_at).toLocaleDateString()}</span>
+                            </div>
+                          </button>
+                        ))}
+                      </>
                     )}
                   </>
                 );
