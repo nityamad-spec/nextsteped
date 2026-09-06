@@ -58,10 +58,14 @@ const corsHeaders = {
 // ------- AI gateway call logger (shared, fire-and-forget) ------------------
 const FUNCTION_NAME = "generate-diagnostic-questions";
 const logGatewayCall = (row: LogRow) => sharedLogGatewayCall(FUNCTION_NAME, row);
+
+/** Course-material grounding, built once per request and shared by all tiers. */
+let ragContext: GenerationContext = EMPTY_GENERATION_CONTEXT;
 // ---------------------------------------------------------------------------
 
 interface GeneratedQuestion {
   content_text: string;
+  source_label?: string | null;
   format: string;
   options: string[] | null;
   answer: string;
@@ -430,6 +434,7 @@ function validateMcq(
       topic: canonicalTopic,
       bloom_justification: bj,
       difficulty_justification: dj,
+      source_label: typeof (q as any)?.source_label === "string" ? (q as any).source_label : null,
     },
   };
 }
@@ -675,8 +680,11 @@ EMPLOYMENT PATHWAY CONTEXT — this is a job-readiness programme, not an academi
 - Keep language plain and role-relevant; assume the learner is preparing to perform the job, not to sit an exam.`
     : "";
 
+  const materialBlock = ragContext.isEmpty ? "" : `\n\n${ragContext.contextBlock}\n`;
+
   const systemPrompt = `You are an expert assessment designer creating diagnostic quiz questions for a course titled "${courseName}".${pathwayFraming} Generate exactly ${askFor} ${spec.tier} tier diagnostic questions.
 
+${materialBlock}
 Tier: ${spec.label}
 Target difficulty (0=easy, 1=hard): ${spec.difficulty}
 
@@ -767,6 +775,7 @@ Examples:
                       topic: { type: "string" },
                       bloom_justification: { type: "string", description: "Format 'CATEGORY: rationale', ≤300 chars. CATEGORY must be one of RECALL, COMPREHENSION, APPLICATION, ANALYSIS, EVALUATION, SYNTHESIS and match bloom_level." },
                       difficulty_justification: { type: "string", description: "Format 'CATEGORY: rationale', ≤300 chars. CATEGORY must be one of SURFACE_RECOGNITION, SINGLE_STEP, MULTI_STEP, EDGE_CASE, COMPOSITE_REASONING and its band must contain difficulty_estimate." },
+                      ...SOURCE_LABEL_SCHEMA_PROPERTY,
                     },
                     required: [
                       "content_text",
@@ -1418,6 +1427,14 @@ Deno.serve(async (req) => {
 
     const { units, conceptByCode } = buildUnits(concepts, weeks || []);
 
+    // One retrieval for the whole run, shared by every tier and retry.
+    ragContext = await buildGenerationContext({
+      courseId: courseId as string,
+      conceptCodes: Object.keys(conceptByCode),
+      courseName: (course as { name?: string }).name ?? undefined,
+    });
+    console.log(`[diagnostic] grounding sources=${ragContext.sources.length} empty=${ragContext.isEmpty}`);
+
     const requestId = crypto.randomUUID();
     const runId = crypto.randomUUID();
     const abortController = new AbortController();
@@ -1631,6 +1648,7 @@ Deno.serve(async (req) => {
           topic: recheck.normalized.topic,
           bloom_justification: recheck.normalized.bloom_justification,
           difficulty_justification: recheck.normalized.difficulty_justification,
+          source_refs: resolveSourceRefs((recheck.normalized as any).source_label, ragContext),
 
           concept_id: conceptInfo.id,
           course_id: course.id,
