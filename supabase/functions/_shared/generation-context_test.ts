@@ -22,7 +22,7 @@ const chunk = (over: Partial<RagChunk> = {}): RagChunk => ({
 
 Deno.test("renderGenerationContext labels excerpts and maps concepts", () => {
   const ctx = renderGenerationContext(
-    [chunk(), chunk({ id: "c2", file_name: "notes.pdf", content: "Loops iterate." })],
+    [chunk(), chunk({ id: "c2", chunk_index: 7, file_name: "notes.pdf", content: "Loops iterate." })],
     ["recursion_base_cases", "loops"],
   );
   assertEquals(ctx.isEmpty, false);
