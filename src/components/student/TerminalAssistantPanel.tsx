@@ -1,8 +1,16 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import ReactMarkdown from "react-markdown";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { supabase } from "@/integrations/supabase/client";
-import { Bot, Loader2, Send, User } from "lucide-react";
+import { Bot, ChevronDown, Loader2, Plus, Send } from "lucide-react";
 import { toast } from "sonner";
 
 export interface TerminalCodeContext {
@@ -44,18 +52,29 @@ export default function TerminalAssistantPanel({
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [loadingHistory, setLoadingHistory] = useState(!!resumeSessionId);
+  const [sessions, setSessions] = useState<{ id: string; title: string; updated_at: string }[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  // Tracks which session's transcript is already loaded so a session we just
+  // created on first send isn't re-fetched (which could drop a pending reply).
+  const loadedSessionRef = useRef<string | null>(null);
 
-  // Load prior transcript when resuming a session.
+  // Load the transcript whenever the active session changes — on resume from
+  // the sidebar or when switching conversations from the header dropdown.
   useEffect(() => {
-    if (!resumeSessionId) return;
+    if (!sessionId) {
+      setLoadingHistory(false);
+      return;
+    }
+    if (loadedSessionRef.current === sessionId) return;
+    const sid = sessionId;
     let cancelled = false;
+    setLoadingHistory(true);
     (async () => {
       const { data, error } = await supabase
         .from("chat_messages")
         .select("id, role, content, created_at")
-        .eq("session_id", resumeSessionId)
+        .eq("session_id", sid)
         .order("created_at", { ascending: true });
       if (cancelled) return;
       if (error) {
@@ -67,13 +86,53 @@ export default function TerminalAssistantPanel({
             .filter((m) => m.role === "user" || m.role === "assistant")
             .map((m) => ({ id: m.id, role: m.role as "user" | "assistant", content: m.content })),
         );
+        loadedSessionRef.current = sid;
       }
       setLoadingHistory(false);
     })();
     return () => {
       cancelled = true;
     };
-  }, [resumeSessionId]);
+  }, [sessionId]);
+
+  // Saved terminal-help conversations for the header switcher. Re-runs when
+  // sessionId changes so a newly created conversation appears in the list.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const { data: authData } = await supabase.auth.getSession();
+      const uid = authData.session?.user?.id;
+      if (!uid || cancelled) return;
+      const { data, error } = await supabase
+        .from("chat_sessions")
+        .select("id, title, updated_at")
+        .eq("user_id", uid)
+        .eq("course_id", courseId)
+        .eq("mode", "terminal")
+        .order("updated_at", { ascending: false })
+        .limit(30);
+      if (cancelled) return;
+      if (error) console.error("[TerminalAssistant] sessions load failed", error);
+      else setSessions(data ?? []);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId, sessionId]);
+
+  const startNewConversation = () => {
+    loadedSessionRef.current = null;
+    setSessionId(null);
+    setMessages([]);
+    setInput("");
+    inputRef.current?.focus();
+  };
+
+  const switchConversation = (id: string) => {
+    if (id === sessionId) return;
+    setMessages([]);
+    setSessionId(id);
+  };
 
   useEffect(() => {
     inputRef.current?.focus();
