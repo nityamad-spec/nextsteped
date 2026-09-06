@@ -22,6 +22,33 @@ export interface ExamQuestionRow {
   exam_id: string | null;
   model_answer: string | null;
   answer_max_words: number | null;
+  source_refs: QuestionSourceRef[] | null;
+}
+
+export interface QuestionSourceRef {
+  file_name: string;
+  page_start: number | null;
+  page_end: number | null;
+}
+
+/** "Lecture3.pdf, p. 4" — one line per distinct source behind a question. */
+export function formatSourceRefs(refs: QuestionSourceRef[] | null | undefined): string {
+  if (!refs || refs.length === 0) return "";
+  const seen = new Set<string>();
+  const parts: string[] = [];
+  for (const r of refs) {
+    if (!r?.file_name) continue;
+    const page = r.page_start == null
+      ? ""
+      : r.page_end != null && r.page_end !== r.page_start
+        ? `, p. ${r.page_start}-${r.page_end}`
+        : `, p. ${r.page_start}`;
+    const label = `${r.file_name}${page}`;
+    if (seen.has(label)) continue;
+    seen.add(label);
+    parts.push(label);
+  }
+  return parts.join("; ");
 }
 
 interface Props {
@@ -45,7 +72,7 @@ export default function ExamQuestionsViewDialog({
     setLoading(true);
     supabase
       .from("assessment_questions")
-      .select("id, question_text, question_type, options, correct_index, answer, topic, difficulty, bloom_level, explanation, difficulty_estimate, bloom_justification, difficulty_justification, exam_id, model_answer, answer_max_words")
+      .select("id, question_text, question_type, options, correct_index, answer, topic, difficulty, bloom_level, explanation, difficulty_estimate, bloom_justification, difficulty_justification, exam_id, model_answer, answer_max_words, source_refs")
       .eq("course_id", courseId)
       .eq("mode", "exam")
       .eq("exam_id", examId)
@@ -142,6 +169,11 @@ export default function ExamQuestionsViewDialog({
                       <p className="text-xs text-muted-foreground">Suggested length: ~{q.answer_max_words} words</p>
                     )}
                   </div>
+                )}
+                {formatSourceRefs(q.source_refs) && (
+                  <p className="text-xs text-muted-foreground">
+                    <span className="font-medium text-foreground">Source:</span> {formatSourceRefs(q.source_refs)}
+                  </p>
                 )}
                 {q.explanation && (
                   <p className="text-xs text-muted-foreground border-t pt-2 mt-2">
