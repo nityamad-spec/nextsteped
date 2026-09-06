@@ -71,7 +71,13 @@ export default function CodingTerminalWidget({
   const [output, setOutput] = useState<string>("");
   const [isRunning, setIsRunning] = useState(false);
   const [showStatement, setShowStatement] = useState(hasExercise);
+  const [showAssistant, setShowAssistant] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  // Latest values for the assistant's per-send context snapshot.
+  const codeRef = useRef(code);
+  codeRef.current = code;
+  const outputRef = useRef(output);
+  outputRef.current = output;
 
   const handleLanguageChange = (id: string) => {
     const next = APPROVED_LANGUAGES.find((l) => l.id === id);
@@ -154,6 +160,17 @@ export default function CodingTerminalWidget({
           {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
           {isRunning ? "Running…" : "Run"}
         </Button>
+        {assistantEnabled && courseId && (
+          <Button
+            variant={showAssistant ? "secondary" : "outline"}
+            size="sm"
+            className="h-9 gap-2"
+            onClick={() => setShowAssistant((v) => !v)}
+            aria-pressed={showAssistant}
+          >
+            <Bot className="h-4 w-4" /> <span className="hidden sm:inline">Assistant</span>
+          </Button>
+        )}
         <Button variant="ghost" size="icon" className="h-9 w-9" onClick={onClose} aria-label="Close terminal">
           <X className="h-5 w-5" />
         </Button>
