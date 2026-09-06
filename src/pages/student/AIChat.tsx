@@ -558,6 +558,27 @@ const AIChat = () => {
     })();
   }, [codingReady, codingApproved, enrolledCourseId, user, lessonPlan]);
 
+  // Saved terminal-help conversations (mode='terminal') for the history sidebar.
+  // Re-runs when the terminal closes so a freshly created session appears.
+  useEffect(() => {
+    if (!user || !enrolledCourseId || !codingApproved) {
+      setTerminalSessions([]);
+      return;
+    }
+    supabase
+      .from("chat_sessions")
+      .select("id, title, updated_at")
+      .eq("user_id", user.id)
+      .eq("course_id", enrolledCourseId)
+      .eq("mode", "terminal")
+      .order("updated_at", { ascending: false })
+      .limit(30)
+      .then(({ data, error }) => {
+        if (error) console.error("[AIChat] terminal sessions load failed", error);
+        else setTerminalSessions(data ?? []);
+      });
+  }, [user, enrolledCourseId, codingApproved, showTerminal]);
+
   // Handle ?newchat=true param
   useEffect(() => {
 
@@ -1440,16 +1461,29 @@ const AIChat = () => {
   }
 
   if (showTerminal && codingApproved) {
+    // The assistant panel is freeform-practice only: any terminal opened with
+    // an exercise problem statement gets the plain two-pane layout.
+    const isFreeformTerminal = !terminalContext?.exerciseTitle && !terminalContext?.exerciseStatement;
+    const unitConcepts = terminalUnit
+      ? (lessonPlan.find((w) => w.day === terminalUnit)?.concepts ?? []).map((c) => c.name)
+      : [];
     return (
       <CodingTerminalWidget
         onClose={() => {
           setShowTerminal(false);
           setTerminalContext(null);
+          setTerminalUnit(null);
+          setTerminalResumeSessionId(null);
         }}
         initialCode={terminalContext?.initialCode}
         initialLanguage={terminalContext?.initialLanguage}
         exerciseTitle={terminalContext?.exerciseTitle}
         exerciseStatement={terminalContext?.exerciseStatement}
+        assistantEnabled={isFreeformTerminal}
+        courseId={enrolledCourseId}
+        assistantSessionId={terminalResumeSessionId}
+        unitLabel={terminalUnit ? `Unit ${terminalUnit}` : null}
+        concepts={unitConcepts}
       />
     );
   }
@@ -1659,7 +1693,7 @@ const AIChat = () => {
           </div>
           {mode === "learning" && codingApproved && (
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => setShowTerminal(true)}>
+              <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => { setTerminalContext(null); setTerminalUnit(null); setTerminalResumeSessionId(null); setShowTerminal(true); }}>
                 <Terminal className="h-4 w-4" /> <span className="hidden sm:inline">Code</span>
               </Button>
             </div>
