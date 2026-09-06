@@ -1,7 +1,8 @@
 import { useState, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Terminal, Play, RotateCcw, X, Loader2, ChevronDown, ChevronUp, FileCode2 } from "lucide-react";
+import { Terminal, Play, RotateCcw, X, Loader2, ChevronDown, ChevronUp, FileCode2, Bot } from "lucide-react";
+import TerminalAssistantPanel from "@/components/student/TerminalAssistantPanel";
 
 // TODO(judge0): This approved-languages list will later be sourced from a
 // professor-controlled setting (likely course_ta_settings) so each course
@@ -31,6 +32,16 @@ interface CodingTerminalWidgetProps {
   /** When set, a collapsible problem-statement panel is shown above the editor. */
   exerciseTitle?: string | null;
   exerciseStatement?: string | null;
+  /** Freeform practice only: enables the Socratic coding-assistant side panel. */
+  assistantEnabled?: boolean;
+  /** Course the terminal session belongs to (required when assistantEnabled). */
+  courseId?: string | null;
+  /** Resume a previous terminal-help conversation. */
+  assistantSessionId?: string | null;
+  /** Unit label for new assistant session titles (e.g. "Unit 4"). */
+  unitLabel?: string | null;
+  /** Concept names covered by this practice session (assistant context). */
+  concepts?: string[];
 }
 
 export default function CodingTerminalWidget({
@@ -39,6 +50,11 @@ export default function CodingTerminalWidget({
   initialLanguage,
   exerciseTitle,
   exerciseStatement,
+  assistantEnabled = false,
+  courseId,
+  assistantSessionId,
+  unitLabel,
+  concepts,
 }: CodingTerminalWidgetProps) {
   const initialLangId = toTerminalLanguage(initialLanguage);
   const [languageId, setLanguageId] = useState<string>(initialLangId);
