@@ -54,6 +54,20 @@ import {
   type QuestionFormatKey,
   type QuestionMix,
 } from "../_shared/question-mix.ts";
+import {
+  EMPTY_GENERATION_CONTEXT,
+  buildGenerationContext,
+  resolveSourceRefs,
+  SOURCE_LABEL_SCHEMA_PROPERTY,
+  type GenerationContext,
+} from "../_shared/generation-context.ts";
+
+/**
+ * Course-material grounding for the current request. Built once per request
+ * (see the handler) and read by every tier / backfill pass, so one retrieval
+ * serves the whole generation run.
+ */
+let ragContext: GenerationContext = EMPTY_GENERATION_CONTEXT;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -181,6 +195,7 @@ interface GeneratedQuestion {
   bloom_level: number;
   explanation: string;
   topic: string;
+  source_label?: string | null;
 }
 
 
@@ -296,6 +311,7 @@ function validateCandidate(
       bloom_level,
       explanation: explRes.value,
       topic,
+      source_label: typeof (raw as any)?.source_label === "string" ? (raw as any).source_label : null,
     },
   };
 }
@@ -425,8 +441,11 @@ async function generateTier(
 
 
 
+    const materialBlock = ragContext.isEmpty ? "" : `\n\n${ragContext.contextBlock}\n`;
+
     const systemPrompt = `You are an expert assessment designer for a course titled "${courseName}". Generate exactly ${askFor} ${spec.tier}-tier WEEKLY QUIZ questions for Week ${weekNumber}${weekName ? ` — ${weekName}` : ""}.
 
+${materialBlock}
 Tier: ${spec.label}
 Target difficulty (0=easy, 1=hard): ${spec.difficulty} (must be within ±${(spec.band ?? 0.15).toFixed(2)})
 
@@ -497,6 +516,7 @@ ANSWER-OBVIOUSNESS RULES (critical — questions are rejected if violated):
                           bloom_level: { type: "integer", minimum: 1, maximum: 4 },
                           explanation: { type: "string" },
                           topic: { type: "string" },
+                          ...SOURCE_LABEL_SCHEMA_PROPERTY,
                         },
                         required: [
                           "content_text",
@@ -770,6 +790,18 @@ async function run(
     };
   }
 
+  // One retrieval for the whole run: grounds every tier + backfill pass in the
+  // course's own uploaded material. Empty context => today's behaviour.
+  ragContext = await buildGenerationContext({
+    courseId,
+    conceptCodes: Object.keys(conceptByCode),
+    courseName: course.name ?? undefined,
+    week: weekNumber,
+  });
+  console.log(
+    `[weekly-quiz] grounding sources=${ragContext.sources.length} empty=${ragContext.isEmpty}`,
+  );
+
   // Difficulty bands adapt to how many concepts the week actually has.
   const baseSpec = buildTierSpec(Object.keys(conceptByCode).length);
 
@@ -1022,6 +1054,7 @@ async function run(
       difficulty_estimate: q.difficulty_estimate,
       bloom_level: q.bloom_level,
       item_code: `w${weekNumber}-${spec.tier}-${i}${codeSuffix}`,
+      source_refs: resolveSourceRefs(q.source_label, ragContext),
     };
   });
 
