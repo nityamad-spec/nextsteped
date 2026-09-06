@@ -247,6 +247,11 @@ const AIChat = () => {
     exerciseTitle?: string | null;
     exerciseStatement?: string | null;
   } | null>(null);
+  // Freeform-practice assistant: unit the terminal was opened for, a prior
+  // terminal-help session to resume, and saved terminal-help sessions.
+  const [terminalUnit, setTerminalUnit] = useState<number | null>(null);
+  const [terminalResumeSessionId, setTerminalResumeSessionId] = useState<string | null>(null);
+  const [terminalSessions, setTerminalSessions] = useState<{ id: string; title: string; updated_at: string }[]>([]);
 
   const {
     sessions: chats,
@@ -523,6 +528,8 @@ const AIChat = () => {
         exerciseTitle: exercise?.title ?? null,
         exerciseStatement: exercise?.problem_statement ?? null,
       });
+      setTerminalUnit(unit > 0 ? unit : null);
+      setTerminalResumeSessionId(null);
       setShowTerminal(true);
       navigate("/student/chat", { replace: true });
       // Log the terminal session — counts as practice activity for the unit.
