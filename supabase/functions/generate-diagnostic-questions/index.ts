@@ -47,6 +47,13 @@ import {
   type QuestionFormatKey,
   type QuestionMix,
 } from "../_shared/question-mix.ts";
+import {
+  EMPTY_GENERATION_CONTEXT,
+  buildGenerationContext,
+  resolveSourceRefs,
+  SOURCE_LABEL_SCHEMA_PROPERTY,
+  type GenerationContext,
+} from "../_shared/generation-context.ts";
 
 
 const corsHeaders = {
