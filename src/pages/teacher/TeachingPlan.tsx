@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, Reorder } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
+import { useCourseType } from "@/hooks/useCourseType";
 import { supabase } from "@/integrations/supabase/client";
 import {
   resolvePublishedPath,
