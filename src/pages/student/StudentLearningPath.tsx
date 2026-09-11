@@ -570,7 +570,7 @@ const StudentLearningPath = () => {
               }
               if (stage.kind === "soft_skills") {
                 return softSkills.length > 0 ? (
-                  <CareerReadinessSteps modules={softSkills} onStudy={(title) => goToStudy(title, "start")} />
+                  <CareerReadinessSteps modules={softSkills} targetRole={targetRole} onStudy={(title) => goToStudy(title, "start")} />
                 ) : (
                   <Card>
                     <CardContent className="py-6 text-center text-sm text-muted-foreground">
@@ -611,7 +611,7 @@ const StudentLearningPath = () => {
           <>
             {renderUnitArea(lessonPlan.map((w) => w.day))}
             {softSkills.length > 0 && (
-              <CareerReadinessSteps modules={softSkills} onStudy={(title) => goToStudy(title, "start")} />
+              <CareerReadinessSteps modules={softSkills} targetRole={targetRole} onStudy={(title) => goToStudy(title, "start")} />
             )}
           </>
         )}
