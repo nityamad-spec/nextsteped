@@ -1,6 +1,8 @@
 import { motion } from "framer-motion";
+import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
+import { supabase } from "@/integrations/supabase/client";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 import { useCourseSoftSkills } from "@/hooks/useCourseSoftSkills";
 import CareerReadinessSteps from "@/components/student/employment/CareerReadinessSteps";
@@ -10,6 +12,23 @@ const CareerReadiness = () => {
   const navigate = useNavigate();
   const courseId = useEnrolledCourseId();
   const { modules, loading } = useCourseSoftSkills(courseId, true);
+  const [targetRole, setTargetRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!courseId) return;
+    let cancelled = false;
+    supabase
+      .from("courses")
+      .select("target_role")
+      .eq("id", courseId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (!cancelled) setTargetRole(data?.target_role ?? null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId]);
 
   const goToStudy = (title: string) =>
     navigate(`/student/chat?newchat=true&mode=learning&concept=${encodeURIComponent(title)}&intent=start`);

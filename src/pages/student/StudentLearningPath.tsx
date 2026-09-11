@@ -611,7 +611,7 @@ const StudentLearningPath = () => {
           <>
             {renderUnitArea(lessonPlan.map((w) => w.day))}
             {softSkills.length > 0 && (
-              <CareerReadinessSteps modules={softSkills} onStudy={(title) => goToStudy(title, "start")} />
+              <CareerReadinessSteps modules={softSkills} targetRole={targetRole} onStudy={(title) => goToStudy(title, "start")} />
             )}
           </>
         )}
