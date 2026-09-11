@@ -1018,6 +1018,7 @@ export type Database = {
           outcomes: string[]
           position: number
           published: boolean
+          step: string | null
           summary: string
           title: string
           updated_at: string
@@ -1030,6 +1031,7 @@ export type Database = {
           outcomes?: string[]
           position?: number
           published?: boolean
+          step?: string | null
           summary?: string
           title: string
           updated_at?: string
@@ -1042,6 +1044,7 @@ export type Database = {
           outcomes?: string[]
           position?: number
           published?: boolean
+          step?: string | null
           summary?: string
           title?: string
           updated_at?: string
