@@ -23,6 +23,18 @@ import { useCourseType } from "@/hooks/useCourseType";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import SetupModuleNav from "@/components/SetupModuleNav";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  CAREER_READINESS_STEPS,
+  normalizeStep,
+  type CareerReadinessStep,
+} from "@/lib/careerReadiness";
 import { markStepCompleted, markStepOpened, clearStepCompleted } from "@/lib/setupProgress";
 
 export type SoftSkillActivity = { title: string; body?: string };
@@ -36,6 +48,7 @@ export type SoftSkillModule = {
   outcomes: string[];
   activities: SoftSkillActivity[];
   published: boolean;
+  step: CareerReadinessStep;
 };
 
 const listToText = (arr: string[]) => arr.join("\n");
@@ -126,6 +139,7 @@ const SoftSkillsSetup = () => {
           outcomes: Array.isArray(row.outcomes) ? row.outcomes : [],
           activities: Array.isArray(row.activities) ? (row.activities as SoftSkillActivity[]) : [],
           published: !!row.published,
+          step: normalizeStep(row.step),
         })),
       );
       setLoading(false);
@@ -160,7 +174,8 @@ const SoftSkillsSetup = () => {
         outcomes: [],
         activities: [] as any,
         published: false,
-      })
+        step: "understand",
+      } as any)
       .select("*")
       .single();
     if (error || !data) {
@@ -177,6 +192,7 @@ const SoftSkillsSetup = () => {
       outcomes: Array.isArray(row.outcomes) ? row.outcomes : [],
       activities: Array.isArray(row.activities) ? row.activities : [],
       published: !!row.published,
+      step: normalizeStep(row.step),
     };
     setModules((prev) => [...prev, mod]);
     setExpanded((prev) => [...prev, mod.id]);
@@ -215,7 +231,8 @@ const SoftSkillsSetup = () => {
           outcomes: m.outcomes,
           activities: m.activities as any,
           published: m.published,
-        })
+          step: m.step,
+        } as any)
         .eq("id", m.id);
       if (error) {
         setSaving(false);
@@ -373,6 +390,27 @@ const SoftSkillsSetup = () => {
                           value={m.title}
                           onChange={(e) => patchModule(m.id, { title: e.target.value })}
                         />
+                      </div>
+                      <div className="space-y-1.5">
+                        <label className="text-xs font-medium">Step</label>
+                        <Select
+                          value={m.step}
+                          onValueChange={(v) => patchModule(m.id, { step: v as CareerReadinessStep })}
+                        >
+                          <SelectTrigger className="max-w-xs">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {CAREER_READINESS_STEPS.map((s) => (
+                              <SelectItem key={s.key} value={s.key}>
+                                {s.index}. {s.title} — {s.subtitle}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <p className="text-xs text-muted-foreground">
+                          Where this module appears in the student Career Readiness tab.
+                        </p>
                       </div>
                       <div className="space-y-1.5">
                         <label className="text-xs font-medium">Summary</label>

@@ -23,7 +23,8 @@ import UnitDetailPanel from "@/components/student/UnitDetailPanel";
 import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
 import { useUnitProgress } from "@/hooks/useUnitProgress";
 import { fetchPublishedExercises, type PublishedCodingExercise } from "@/lib/codingExercises";
-import SoftSkillsUnitCard, { type SoftSkillsModuleView } from "@/components/student/SoftSkillsUnitCard";
+import CareerReadinessSteps from "@/components/student/employment/CareerReadinessSteps";
+import { useCourseSoftSkills } from "@/hooks/useCourseSoftSkills";
 
 interface QuizResultRow {
   quiz_day: number | string;
@@ -327,35 +328,7 @@ const StudentLearningPath = () => {
 
   // Published Soft Skills modules (employment-pathway courses only). RLS keeps
   // this empty for academic courses, so no course-type lookup is needed here.
-  const [softSkills, setSoftSkills] = useState<SoftSkillsModuleView[]>([]);
-  useEffect(() => {
-    if (!enrolledCourseId) {
-      setSoftSkills([]);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      const { data, error } = await supabase
-        .from("course_soft_skills")
-        .select("id, title, summary, outcomes, activities")
-        .eq("course_id", enrolledCourseId)
-        .eq("published", true)
-        .order("position", { ascending: true });
-      if (cancelled || error) return;
-      setSoftSkills(
-        (data ?? []).map((row: any) => ({
-          id: row.id,
-          title: row.title ?? "",
-          summary: row.summary ?? "",
-          outcomes: Array.isArray(row.outcomes) ? row.outcomes : [],
-          activities: Array.isArray(row.activities) ? row.activities : [],
-        })),
-      );
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [enrolledCourseId]);
+  const { modules: softSkills } = useCourseSoftSkills(enrolledCourseId, true);
 
   // Voided (browser-lock) attempts per week. One void is forgiven; a second
   // locks the week until the professor resets it.
@@ -597,11 +570,11 @@ const StudentLearningPath = () => {
               }
               if (stage.kind === "soft_skills") {
                 return softSkills.length > 0 ? (
-                  <SoftSkillsUnitCard modules={softSkills} onStudy={(title) => goToStudy(title, "start")} />
+                  <CareerReadinessSteps modules={softSkills} onStudy={(title) => goToStudy(title, "start")} />
                 ) : (
                   <Card>
                     <CardContent className="py-6 text-center text-sm text-muted-foreground">
-                      Your professor hasn't published soft skills modules yet.
+                      Your professor hasn't published career readiness modules yet.
                     </CardContent>
                   </Card>
                 );
@@ -638,7 +611,7 @@ const StudentLearningPath = () => {
           <>
             {renderUnitArea(lessonPlan.map((w) => w.day))}
             {softSkills.length > 0 && (
-              <SoftSkillsUnitCard modules={softSkills} onStudy={(title) => goToStudy(title, "start")} />
+              <CareerReadinessSteps modules={softSkills} onStudy={(title) => goToStudy(title, "start")} />
             )}
           </>
         )}
