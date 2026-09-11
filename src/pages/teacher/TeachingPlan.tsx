@@ -967,6 +967,48 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
                               </div>
                             )}
 
+                            {isEmployment && (
+                              <div className="grid gap-3 rounded-lg border border-dashed bg-muted/20 p-4 sm:grid-cols-2">
+                                <div className="space-y-1.5">
+                                  <Label className="text-sm font-medium">Pathway stage</Label>
+                                  <Select
+                                    value={weekMeta[dp.day]?.stage ?? "foundations"}
+                                    onValueChange={(v) => void saveWeekMeta(dp.day, { stage: v })}
+                                  >
+                                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="foundations">Stage 1 · Foundations</SelectItem>
+                                      <SelectItem value="advanced">Stage 2 · Advanced Technical</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-sm font-medium">Estimated hours</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    className="h-9 text-sm"
+                                    value={weekMeta[dp.day]?.est_hours ?? ""}
+                                    onChange={(e) =>
+                                      setWeekMeta((prev) => ({
+                                        ...prev,
+                                        [dp.day]: {
+                                          stage: prev[dp.day]?.stage ?? null,
+                                          est_hours: e.target.value === "" ? null : Number(e.target.value),
+                                        },
+                                      }))
+                                    }
+                                    onBlur={(e) =>
+                                      void saveWeekMeta(dp.day, {
+                                        est_hours: e.target.value === "" ? null : Number(e.target.value),
+                                      })
+                                    }
+                                  />
+                                </div>
+                              </div>
+                            )}
+
+
                             {/* Lesson Description + Integrated Resources */}
                             <div className="space-y-3">
                               <div className="flex items-center gap-2">
