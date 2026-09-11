@@ -101,6 +101,8 @@ const CareerReadinessSteps = ({ modules, onStudy, targetRole }: Props) => {
         />
       ) : active === "prepare" ? (
         <StarStoryBuilder targetRole={targetRole} />
+      ) : active === "practice" ? (
+        <MockInterviewLab />
       ) : activeModules.length === 0 ? (
         <Card>
           <CardContent className="py-6 text-center text-sm text-muted-foreground">
