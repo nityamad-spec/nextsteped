@@ -1,5 +1,5 @@
 import { motion } from "framer-motion";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
@@ -11,7 +11,8 @@ import CareerReadinessSteps from "@/components/student/employment/CareerReadines
 const CareerReadiness = () => {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
-  const initialStep = searchParams.get("step");
+  // Capture the ?step= deep link once; the cleanup below strips it from the URL.
+  const initialStepRef = useRef(searchParams.get("step"));
   const courseId = useEnrolledCourseId();
   const { modules, loading } = useCourseSoftSkills(courseId, true);
   const [targetRole, setTargetRole] = useState<string | null>(null);
