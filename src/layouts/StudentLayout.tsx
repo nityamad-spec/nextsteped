@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
-import { Home, Route, MessageSquare, FlaskConical, MessageSquareHeart } from "lucide-react";
+import { Home, Route, MessageSquare, FlaskConical, MessageSquareHeart, Briefcase } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -8,6 +8,7 @@ import StudentCourseSwitcher from "@/components/StudentCourseSwitcher";
 import AddCourseDialog from "@/components/AddCourseDialog";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 import { useCourseProjectLabs } from "@/hooks/useCourseProjectLabs";
+import { useCourseSoftSkills } from "@/hooks/useCourseSoftSkills";
 import { useCourseAccess } from "@/hooks/useCourseAccess";
 import CourseSuspendedNotice from "@/components/student/CourseSuspendedNotice";
 import { supabase } from "@/integrations/supabase/client";
@@ -15,6 +16,7 @@ import { supabase } from "@/integrations/supabase/client";
 const studentNav = [
   { title: "Home", path: "/student/home", icon: Home },
   { title: "Learning Path", path: "/student/learning-path", icon: Route },
+  { title: "Career Readiness", path: "/student/career-readiness", icon: Briefcase },
   { title: "Teaching Assistant", path: "/student/chat", icon: MessageSquare },
   { title: "Project Lab", path: "/student/project-lab", icon: FlaskConical },
   { title: "Feedback", path: "/student/feedback", icon: MessageSquareHeart },
@@ -26,6 +28,7 @@ const StudentLayout = () => {
   const [addCourseOpen, setAddCourseOpen] = useState(false);
   const enrolledCourseId = useEnrolledCourseId();
   const { labs: projectLabs, loading: labsLoading } = useCourseProjectLabs(enrolledCourseId, true);
+  const { modules: softSkills, loading: softSkillsLoading } = useCourseSoftSkills(enrolledCourseId, true);
   const { suspended: courseSuspended } = useCourseAccess(enrolledCourseId);
   const [courseName, setCourseName] = useState<string | null>(null);
 
@@ -46,7 +49,14 @@ const StudentLayout = () => {
   // Project Lab is professor-authored and optional: hide the tab entirely
   // when the active course has no published labs.
   const showProjectLab = !labsLoading && projectLabs.length > 0 && !courseSuspended;
-  const nav = studentNav.filter((i) => i.path !== "/student/project-lab" || showProjectLab);
+  // Career Readiness is employment-pathway content: show it only when the
+  // course has published modules.
+  const showCareerReadiness = !softSkillsLoading && softSkills.length > 0 && !courseSuspended;
+  const nav = studentNav.filter(
+    (i) =>
+      (i.path !== "/student/project-lab" || showProjectLab) &&
+      (i.path !== "/student/career-readiness" || showCareerReadiness),
+  );
 
   const content = courseSuspended
     ? <CourseSuspendedNotice courseName={courseName} />
