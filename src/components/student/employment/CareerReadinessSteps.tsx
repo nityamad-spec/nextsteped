@@ -8,6 +8,7 @@ import {
 } from "@/lib/careerReadiness";
 import type { SoftSkillsModuleView } from "@/hooks/useCourseSoftSkills";
 import UnderstandBriefing from "./UnderstandBriefing";
+import StarStoryBuilder from "./StarStoryBuilder";
 
 interface Props {
   modules: SoftSkillsModuleView[];
