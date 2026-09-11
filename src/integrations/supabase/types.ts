@@ -1309,6 +1309,7 @@ export type Database = {
           start_date: string | null
           syllabus_json_path: string | null
           syllabus_uploaded: boolean
+          target_role: string | null
           teacher_id: string
           term: string
           total_weeks: number | null
@@ -1346,6 +1347,7 @@ export type Database = {
           start_date?: string | null
           syllabus_json_path?: string | null
           syllabus_uploaded?: boolean
+          target_role?: string | null
           teacher_id: string
           term: string
           total_weeks?: number | null
@@ -1383,6 +1385,7 @@ export type Database = {
           start_date?: string | null
           syllabus_json_path?: string | null
           syllabus_uploaded?: boolean
+          target_role?: string | null
           teacher_id?: string
           term?: string
           total_weeks?: number | null

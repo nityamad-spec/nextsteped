@@ -15,6 +15,13 @@
       "when": 1788658773186,
       "tag": "0001_add_question_source_refs",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1789095809789,
+      "tag": "0002_add_courses_target_role",
+      "breakpoints": true
     }
   ]
 }
