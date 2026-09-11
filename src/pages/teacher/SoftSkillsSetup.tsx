@@ -237,18 +237,45 @@ const SoftSkillsSetup = () => {
         <CardHeader>
           <CardTitle className="text-base">Target role</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-1.5">
-          <Input
-            value={targetRole}
-            placeholder="e.g. AI Engineer"
-            onChange={(e) => setTargetRole(e.target.value)}
-            onBlur={() => void saveTargetRole()}
-            className="max-w-sm"
-          />
-          <p className="text-xs text-muted-foreground">
-            Shown to students on their home page as their pathway track. Leave blank to use the
-            course name.
-          </p>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Input
+              value={targetRole}
+              placeholder="e.g. AI Engineer"
+              onChange={(e) => setTargetRole(e.target.value)}
+              onBlur={() => void saveTargetRole()}
+              className="max-w-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown to students on their home page as their pathway track. Leave blank to use the
+              course name.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 sm:max-w-lg">
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Soft skills hours</p>
+              <Input
+                type="number"
+                min={0}
+                value={softSkillsHours}
+                onChange={(e) => setSoftSkillsHours(e.target.value)}
+                onBlur={() => void saveStageHours("soft_skills_hours", softSkillsHours)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Capstone hours</p>
+              <Input
+                type="number"
+                min={0}
+                value={capstoneHours}
+                onChange={(e) => setCapstoneHours(e.target.value)}
+                onBlur={() => void saveStageHours("capstone_hours", capstoneHours)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              Estimated hours for the Soft Skills and Capstone stages of the student pathway.
+            </p>
+          </div>
         </CardContent>
       </Card>
 
