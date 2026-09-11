@@ -1,12 +1,14 @@
 import { useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ChevronDown, ChevronRight, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp } from "lucide-react";
 import {
   CAREER_READINESS_STEPS,
+  isCareerReadinessStep,
   type CareerReadinessStep,
 } from "@/lib/careerReadiness";
 import type { SoftSkillsModuleView } from "@/hooks/useCourseSoftSkills";
+import CareerReadinessStepper from "./CareerReadinessStepper";
 import UnderstandBriefing from "./UnderstandBriefing";
 import StarStoryBuilder from "./StarStoryBuilder";
 import MockInterviewLab from "./MockInterviewLab";
@@ -15,6 +17,8 @@ interface Props {
   modules: SoftSkillsModuleView[];
   onStudy: (moduleTitle: string) => void;
   targetRole?: string | null;
+  /** Optional step to open initially (e.g. from a ?step= deep link). */
+  initialStep?: string | null;
 }
 
 /**
@@ -22,7 +26,7 @@ interface Props {
  * Understand shows a static role briefing; Prepare/Practice list the
  * modules the professor assigned to them.
  */
-const CareerReadinessSteps = ({ modules, onStudy, targetRole }: Props) => {
+const CareerReadinessSteps = ({ modules, onStudy, targetRole, initialStep }: Props) => {
   const byStep = useMemo(() => {
     const map: Record<CareerReadinessStep, SoftSkillsModuleView[]> = {
       understand: [],
@@ -35,7 +39,9 @@ const CareerReadinessSteps = ({ modules, onStudy, targetRole }: Props) => {
 
   const firstWithContent =
     CAREER_READINESS_STEPS.find((s) => byStep[s.key].length > 0)?.key ?? "understand";
-  const [active, setActive] = useState<CareerReadinessStep>(firstWithContent);
+  const [active, setActive] = useState<CareerReadinessStep>(
+    initialStep && isCareerReadinessStep(initialStep) ? initialStep : firstWithContent
+  );
   const [openModule, setOpenModule] = useState<string | null>(null);
 
   const activeModules = byStep[active];
