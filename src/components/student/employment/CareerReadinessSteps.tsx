@@ -7,17 +7,20 @@ import {
   type CareerReadinessStep,
 } from "@/lib/careerReadiness";
 import type { SoftSkillsModuleView } from "@/hooks/useCourseSoftSkills";
+import UnderstandBriefing from "./UnderstandBriefing";
 
 interface Props {
   modules: SoftSkillsModuleView[];
   onStudy: (moduleTitle: string) => void;
+  targetRole?: string | null;
 }
 
 /**
  * Three-step Career Readiness view: Understand → Prepare → Practice.
- * Each step lists the modules the professor assigned to it.
+ * Understand shows a static role briefing; Prepare/Practice list the
+ * modules the professor assigned to them.
  */
-const CareerReadinessSteps = ({ modules, onStudy }: Props) => {
+const CareerReadinessSteps = ({ modules, onStudy, targetRole }: Props) => {
   const byStep = useMemo(() => {
     const map: Record<CareerReadinessStep, SoftSkillsModuleView[]> = {
       understand: [],
@@ -86,7 +89,15 @@ const CareerReadinessSteps = ({ modules, onStudy }: Props) => {
         </CardContent>
       </Card>
 
-      {activeModules.length === 0 ? (
+      {active === "understand" ? (
+        <UnderstandBriefing
+          targetRole={targetRole || "this role"}
+          onGoToPrepare={() => {
+            setActive("prepare");
+            setOpenModule(null);
+          }}
+        />
+      ) : activeModules.length === 0 ? (
         <Card>
           <CardContent className="py-6 text-center text-sm text-muted-foreground">
             Nothing in this step yet.
