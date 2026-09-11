@@ -9,6 +9,7 @@ import {
 import type { SoftSkillsModuleView } from "@/hooks/useCourseSoftSkills";
 import UnderstandBriefing from "./UnderstandBriefing";
 import StarStoryBuilder from "./StarStoryBuilder";
+import MockInterviewLab from "./MockInterviewLab";
 
 interface Props {
   modules: SoftSkillsModuleView[];
