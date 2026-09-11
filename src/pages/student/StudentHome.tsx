@@ -642,12 +642,7 @@ const StudentHome = () => {
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <CardTitle className="flex items-center gap-3 text-base">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-                    <Compass className="h-4 w-4" />
-                  </span>
-                  What to do today
-                </CardTitle>
+                <CardTitle className="text-xl font-heading font-semibold">What to do today</CardTitle>
                 <CardDescription className="mt-1">
                   {nextActionsLoading
                     ? "Loading your activities…"
@@ -753,7 +748,7 @@ const StudentHome = () => {
           <CardHeader className="pb-3">
             <div className="flex items-start justify-between gap-4">
               <div className="flex-1 min-w-0">
-                <CardTitle className="text-xl font-serif">Concept mastery</CardTitle>
+                <CardTitle className="text-xl font-heading font-semibold">Concept mastery</CardTitle>
                 <CardDescription>A quick view of where you stand</CardDescription>
               </div>
               <div className="text-right shrink-0">
