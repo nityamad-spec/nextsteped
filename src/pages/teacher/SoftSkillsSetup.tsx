@@ -52,6 +52,9 @@ const SoftSkillsSetup = () => {
   const [expanded, setExpanded] = useState<string[]>([]);
   // Target role shown to students on their employment-pathway home page.
   const [targetRole, setTargetRole] = useState("");
+  // Hour estimates for the two non-technical pathway stages.
+  const [softSkillsHours, setSoftSkillsHours] = useState("");
+  const [capstoneHours, setCapstoneHours] = useState("");
 
   useEffect(() => {
     if (!courseId) { setTargetRole(""); return; }
@@ -59,13 +62,29 @@ const SoftSkillsSetup = () => {
     (async () => {
       const { data } = await supabase
         .from("courses")
-        .select("target_role")
+        .select("target_role, soft_skills_hours, capstone_hours")
         .eq("id", courseId)
         .maybeSingle();
-      if (!cancelled) setTargetRole(((data as any)?.target_role ?? "") as string);
+      if (cancelled) return;
+      setTargetRole(((data as any)?.target_role ?? "") as string);
+      setSoftSkillsHours(((data as any)?.soft_skills_hours ?? "").toString());
+      setCapstoneHours(((data as any)?.capstone_hours ?? "").toString());
     })();
     return () => { cancelled = true; };
   }, [courseId]);
+
+  const saveStageHours = async (column: "soft_skills_hours" | "capstone_hours", raw: string) => {
+    if (!courseId) return;
+    const value = raw.trim() === "" ? null : Number(raw);
+    if (value !== null && (!Number.isFinite(value) || value < 0)) return;
+    const { error } = await supabase
+      .from("courses")
+      .update({ [column]: value } as any)
+      .eq("id", courseId);
+    if (error) {
+      toast({ title: "Could not save hours", description: error.message, variant: "destructive" });
+    }
+  };
 
   const saveTargetRole = async () => {
     if (!courseId) return;
