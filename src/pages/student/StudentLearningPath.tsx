@@ -9,12 +9,12 @@ import { useCodingAccess } from "@/hooks/useCodingAccess";
 import { useLearningPlan } from "@/hooks/useLearningPlan";
 import { supabase } from "@/integrations/supabase/client";
 import { Card, CardContent } from "@/components/ui/card";
-import { Progress } from "@/components/ui/progress";
 import { BookOpen } from "lucide-react";
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
 import { fetchVoidCounts } from "@/lib/attemptVoids";
-import UnitPathwayCard from "@/components/student/UnitPathwayCard";
+import UnitPathRail from "@/components/student/UnitPathRail";
+import UnitDetailPanel from "@/components/student/UnitDetailPanel";
 import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
 import { useUnitProgress } from "@/hooks/useUnitProgress";
 import { fetchPublishedExercises, type PublishedCodingExercise } from "@/lib/codingExercises";
@@ -32,6 +32,30 @@ interface QuizResultRow {
 interface QuestionDayRow {
   quiz_day: number | string;
 }
+
+/** Slim ring showing overall course progress. */
+const ProgressRing = ({ value }: { value: number }) => {
+  const r = 26;
+  const c = 2 * Math.PI * r;
+  return (
+    <div className="relative h-16 w-16 shrink-0">
+      <svg viewBox="0 0 64 64" className="h-16 w-16 -rotate-90">
+        <circle cx="32" cy="32" r={r} className="fill-none stroke-muted" strokeWidth="6" />
+        <circle
+          cx="32"
+          cy="32"
+          r={r}
+          className="fill-none stroke-primary transition-[stroke-dashoffset] duration-500"
+          strokeWidth="6"
+          strokeLinecap="round"
+          strokeDasharray={c}
+          strokeDashoffset={c - (c * Math.max(0, Math.min(100, value))) / 100}
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-sm font-bold">{value}%</span>
+    </div>
+  );
+};
 
 const StudentLearningPath = () => {
   const { user } = useAuth();
@@ -63,29 +87,20 @@ const StudentLearningPath = () => {
     quizTakenAtByUnit,
   );
 
-  const [expandedWeeks, setExpandedWeeks] = useState<number[]>([currentWeek]);
+  // The unit whose detail panel is open. Null until the focus unit resolves.
+  const [selectedUnit, setSelectedUnit] = useState<number | null>(null);
 
-  // Deep link from the concept mastery map: ?unit=N expands + scrolls to that unit.
+  // Deep link from the concept mastery map: ?unit=N opens that unit's panel.
   const [searchParams, setSearchParams] = useSearchParams();
   const requestedUnit = Number(searchParams.get("unit")) || null;
-  const [highlightedUnit, setHighlightedUnit] = useState<number | null>(null);
   useEffect(() => {
     if (!requestedUnit || lessonPlan.length === 0) return;
     if (!lessonPlan.some((w) => w.day === requestedUnit)) return;
-    setExpandedWeeks((prev) => (prev.includes(requestedUnit) ? prev : [...prev, requestedUnit]));
-    setHighlightedUnit(requestedUnit);
+    setSelectedUnit(requestedUnit);
     const next = new URLSearchParams(searchParams);
     next.delete("unit");
     next.delete("concept");
     setSearchParams(next, { replace: true });
-    const scrollTimer = window.setTimeout(() => {
-      document.getElementById(`unit-card-${requestedUnit}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
-    }, 100);
-    const clearTimer = window.setTimeout(() => setHighlightedUnit(null), 2500);
-    return () => {
-      window.clearTimeout(scrollTimer);
-      window.clearTimeout(clearTimer);
-    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestedUnit, lessonPlan.length]);
 
@@ -330,10 +345,6 @@ const StudentLearningPath = () => {
     setQuizDialog({ open: true, day });
   };
 
-  const toggleWeek = (week: number) => {
-    setExpandedWeeks((prev) => (prev.includes(week) ? prev.filter((w) => w !== week) : [...prev, week]));
-  };
-
   const readyUnitCount = lessonPlan.filter((w) => (readinessByUnit[w.day] ?? 0) >= READINESS_THRESHOLD).length;
   const progressPct = lessonPlan.length > 0
     ? Math.max(0, Math.min(100, Math.round((readyUnitCount / lessonPlan.length) * 100)))
@@ -347,11 +358,8 @@ const StudentLearningPath = () => {
     ?? null;
   const displayedUnit = focusUnit?.day ?? Math.max(1, Math.min(totalWeeks, currentWeek));
 
-  // Expand the focus unit once it is known.
-  useEffect(() => {
-    if (!focusUnit) return;
-    setExpandedWeeks((prev) => (prev.includes(focusUnit.day) ? prev : [...prev, focusUnit.day]));
-  }, [focusUnit?.day]);
+  const openUnitDay = selectedUnit ?? focusUnit?.day ?? null;
+  const openUnit = lessonPlan.find((w) => w.day === openUnitDay) ?? focusUnit;
 
   const goToStudy = (concept: string, intent: "start" | "weak") => {
     navigate(`/student/chat?newchat=true&mode=learning&concept=${encodeURIComponent(concept)}&intent=${intent}`);
@@ -369,6 +377,18 @@ const StudentLearningPath = () => {
     navigate(`/student/chat?practice=1&topic=${encodeURIComponent(topic)}`);
   };
 
+  const doneDays = new Set(
+    lessonPlan.filter((w) => (readinessByUnit[w.day] ?? 0) >= READINESS_THRESHOLD).map((w) => w.day),
+  );
+  const unitLabels: Record<number, string> = {};
+  lessonPlan.forEach((w) => {
+    unitLabels[w.day] = w.topic;
+  });
+
+  const openTaken = openUnit ? takenQuizzes[openUnit.day] : undefined;
+  const openWeak = openUnit ? (weakConceptsByUnit[openUnit.day] ?? []) : [];
+  const openVoids = openUnit ? (voidCounts[openUnit.day] ?? 0) : 0;
+
   return (
     <div className="p-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
@@ -376,22 +396,19 @@ const StudentLearningPath = () => {
         {courseName && <p className="mt-1 text-sm text-muted-foreground">{courseName}</p>}
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
         <Card>
-          <CardContent className="p-4">
-            <div className="mb-2 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <BookOpen className="h-4 w-4 text-primary" />
-                <p className="text-sm font-medium">Course Progress</p>
-              </div>
-              <span className="text-sm text-muted-foreground">Unit {displayedUnit} of {totalWeeks}</span>
+          <CardContent className="flex items-center gap-4 p-5">
+            <ProgressRing value={progressPct} />
+            <div className="min-w-0">
+              <p className="font-heading text-base font-bold">
+                You're on Unit {displayedUnit} — {readyUnitCount} of {lessonPlan.length || totalWeeks} units complete
+              </p>
+              <p className="mt-0.5 text-sm text-muted-foreground">
+                Reach {READINESS_THRESHOLD}% mastery in a unit to unlock the next. Study and practice keep raising your
+                mastery.
+              </p>
             </div>
-            <Progress value={progressPct} className="mb-1 h-2" />
-            <p className="text-xs text-muted-foreground">
-              {lessonPlan.length === 0
-                ? "No units published yet"
-                : `${readyUnitCount} of ${lessonPlan.length} units at ${READINESS_THRESHOLD}%+ readiness`}
-            </p>
           </CardContent>
         </Card>
       </motion.div>
@@ -400,7 +417,7 @@ const StudentLearningPath = () => {
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.05 }}
-        className="space-y-3"
+        className="space-y-4"
       >
         {planLoading ? (
           <p className="py-6 text-center text-sm text-muted-foreground">Loading learning path...</p>
@@ -428,60 +445,61 @@ const StudentLearningPath = () => {
             </CardContent>
           </Card>
         ) : (
-          lessonPlan.map((unit) => {
-            const taken = takenQuizzes[unit.day];
-            const voids = voidCounts[unit.day] ?? 0;
-            const weak = weakConceptsByUnit[unit.day] ?? [];
-            return (
-              <UnitPathwayCard
-                key={unit.id || unit.day}
-                unitNumber={unit.day}
-                topic={unit.topic}
+          <>
+            <UnitPathRail
+              days={lessonPlan.map((w) => w.day)}
+              labels={unitLabels}
+              doneDays={doneDays}
+              currentDay={displayedUnit}
+              selectedDay={openUnit?.day ?? displayedUnit}
+              onSelect={(day) => setSelectedUnit(day)}
+            />
+
+            {openUnit && (
+              <UnitDetailPanel
+                key={openUnit.day}
+                unitNumber={openUnit.day}
+                topic={openUnit.topic}
                 totalUnits={lessonPlan.length}
-                expanded={expandedWeeks.includes(unit.day)}
-                onToggle={() => toggleWeek(unit.day)}
-                studied={!!studiedByUnit[unit.day]}
-                practised={!!practisedByUnit[unit.day]}
-                quizTaken={!!taken}
-                isCodingWeek={!!unit.is_coding_week}
-                exercises={exercisesByUnit[unit.day] ?? []}
+                studied={!!studiedByUnit[openUnit.day]}
+                practised={!!practisedByUnit[openUnit.day]}
+                quizTaken={!!openTaken}
+                isCodingWeek={!!openUnit.is_coding_week}
+                exercises={exercisesByUnit[openUnit.day] ?? []}
                 completedExerciseIds={completedExerciseIds}
-                onOpenExercise={(ex) =>
-                  navigate(`/student/chat?terminal=1&unit=${unit.day}&exercise=${ex.id}`)
+                onOpenExercise={(ex) => navigate(`/student/chat?terminal=1&unit=${openUnit.day}&exercise=${ex.id}`)}
+                quizScore={openTaken?.score}
+                quizAvailable={availableQuizDays.has(openUnit.day)}
+                quizLocked={openVoids >= 2}
+                quizFinalAttempt={openVoids === 1}
+                readiness={readinessByUnit[openUnit.day] ?? 0}
+                weakConcepts={openWeak}
+                concepts={conceptsByUnit[openUnit.day] ?? []}
+                onStudyConcept={(concept, isWeak) => goToStudy(concept, isWeak && !!openTaken ? "weak" : "start")}
+                resources={
+                  openUnit.is_coding_week
+                    ? []
+                    : (Array.isArray(openUnit.resources) ? openUnit.resources : []).filter(
+                        (r) => codingApproved || r?.type !== "coding-exercise",
+                      )
                 }
-                quizScore={taken?.score}
-                quizAvailable={availableQuizDays.has(unit.day)}
-                quizLocked={voids >= 2}
-                quizFinalAttempt={voids === 1}
-                readiness={readinessByUnit[unit.day] ?? 0}
-                highlighted={highlightedUnit === unit.day}
-                weakConcepts={weak}
-                concepts={conceptsByUnit[unit.day] ?? []}
-                onStudyConcept={(concept, isWeak) => goToStudy(concept, isWeak && !!taken ? "weak" : "start")}
-                resources={unit.is_coding_week ? [] : (Array.isArray(unit.resources) ? unit.resources : []).filter((r) => codingApproved || r?.type !== "coding-exercise")}
                 activityDone={activityDone}
                 onToggleActivity={toggleActivityDone}
                 onStudy={() =>
                   goToStudy(
-                    (taken ? weak[0] : unit.concepts?.[0]?.name) || unit.topic,
-                    taken ? "weak" : "start",
+                    (openTaken ? openWeak[0] : openUnit.concepts?.[0]?.name) || openUnit.topic,
+                    openTaken ? "weak" : "start",
                   )
                 }
                 onPractice={() =>
-                  goToPractice(unit.day, taken && weak.length > 0 ? weak.join(", ") : unit.topic)
+                  goToPractice(openUnit.day, openTaken && openWeak.length > 0 ? openWeak.join(", ") : openUnit.topic)
                 }
                 practiceViaTerminal={codingApproved}
-                onTakeQuiz={() => attemptOpenQuiz(unit.day)}
-                onGoToNextUnit={() => {
-                  const next = unit.day + 1;
-                  setExpandedWeeks((prev) => {
-                    const withoutCurrent = prev.filter((w) => w !== unit.day);
-                    return withoutCurrent.includes(next) ? withoutCurrent : [...withoutCurrent, next];
-                  });
-                }}
+                onTakeQuiz={() => attemptOpenQuiz(openUnit.day)}
+                onGoToNextUnit={() => setSelectedUnit(openUnit.day + 1)}
               />
-            );
-          })
+            )}
+          </>
         )}
         {softSkills.length > 0 && (
           <SoftSkillsUnitCard
