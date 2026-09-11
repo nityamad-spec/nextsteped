@@ -13,7 +13,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
-import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, Check, Sparkles, Compass, Code2 } from "lucide-react";
+import { Brain, BookOpen, ArrowRight, MessageSquare, ClipboardCheck, Check, Sparkles, Code2 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import WeeklyQuizDialog from "@/components/WeeklyQuizDialog";
 import DiagnosticGateDialog from "@/components/student/DiagnosticGateDialog";
