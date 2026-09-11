@@ -97,7 +97,7 @@ const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelec
   return (
     <div className="rounded-2xl border bg-card p-5">
       <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
-        <p className="text-sm font-semibold">Your path</p>
+        <p className="font-heading text-xl font-semibold">Your path</p>
         <div className="flex items-center gap-4 text-xs text-muted-foreground">
           <span className="flex items-center gap-1.5">
             <span className="h-2 w-2 rounded-full bg-emerald-500" /> Done
