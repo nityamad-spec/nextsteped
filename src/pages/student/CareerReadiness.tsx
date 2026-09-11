@@ -62,7 +62,7 @@ const CareerReadiness = () => {
           </CardContent>
         </Card>
       ) : (
-        <CareerReadinessSteps modules={modules} targetRole={targetRole} onStudy={goToStudy} initialStep={initialStep} />
+        <CareerReadinessSteps modules={modules} targetRole={targetRole} onStudy={goToStudy} initialStep={initialStepRef.current} />
       )}
     </div>
   );
