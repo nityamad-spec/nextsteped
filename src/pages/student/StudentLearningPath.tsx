@@ -23,7 +23,7 @@ import UnitDetailPanel from "@/components/student/UnitDetailPanel";
 import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
 import { useUnitProgress } from "@/hooks/useUnitProgress";
 import { fetchPublishedExercises, type PublishedCodingExercise } from "@/lib/codingExercises";
-import CareerReadinessSteps from "@/components/student/employment/CareerReadinessSteps";
+import CareerReadinessStepper from "@/components/student/employment/CareerReadinessStepper";
 import { useCourseSoftSkills } from "@/hooks/useCourseSoftSkills";
 
 interface QuizResultRow {
@@ -570,7 +570,7 @@ const StudentLearningPath = () => {
               }
               if (stage.kind === "soft_skills") {
                 return softSkills.length > 0 ? (
-                  <CareerReadinessSteps modules={softSkills} targetRole={targetRole} onStudy={(title) => goToStudy(title, "start")} />
+                  <CareerReadinessStepper active={null} onSelect={(step) => navigate(`/student/career-readiness?step=${step}`)} />
                 ) : (
                   <Card>
                     <CardContent className="py-6 text-center text-sm text-muted-foreground">
@@ -611,7 +611,7 @@ const StudentLearningPath = () => {
           <>
             {renderUnitArea(lessonPlan.map((w) => w.day))}
             {softSkills.length > 0 && (
-              <CareerReadinessSteps modules={softSkills} targetRole={targetRole} onStudy={(title) => goToStudy(title, "start")} />
+              <CareerReadinessStepper active={null} onSelect={(step) => navigate(`/student/career-readiness?step=${step}`)} />
             )}
           </>
         )}
