@@ -147,14 +147,14 @@ const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelec
                   >
                     {isDone && !isCurrent ? <Check className="h-5 w-5" strokeWidth={3} /> : item.day}
                   </button>
-                  <p
-                    className={`mt-2 line-clamp-2 text-center text-[11px] leading-tight ${
+                  <div
+                    className={`mt-2 w-full overflow-hidden text-center text-[11px] leading-tight ${
                       isCurrent ? "font-semibold text-foreground" : "text-muted-foreground"
                     }`}
                   >
-                    Unit {item.day}
+                    <span className="block truncate">Unit {item.day}</span>
                     <span className="block truncate">{labels[item.day] ?? ""}</span>
-                  </p>
+                  </div>
                 </div>,
                 isLast ? null : connector,
               ];
