@@ -46,6 +46,7 @@ import StudentHome from "./pages/student/StudentHome";
 import StudentLearningPath from "./pages/student/StudentLearningPath";
 import AIChat from "./pages/student/AIChat";
 import StudentProjectLab from "./pages/student/StudentProjectLab";
+import CareerReadiness from "./pages/student/CareerReadiness";
 import StudentProgress from "./pages/student/Progress";
 import Feedback from "./pages/student/Feedback";
 import ComingSoon from "./components/ComingSoon";
@@ -384,6 +385,7 @@ const App = () => (
                 <Route path="/student/learning-path" element={<StudentLearningPath />} />
                 <Route path="/student/chat" element={<AIChat />} />
                 <Route path="/student/project-lab" element={<StudentProjectLab />} />
+                <Route path="/student/career-readiness" element={<CareerReadiness />} />
                 <Route path="/student/feedback" element={<Feedback />} />
                 <Route path="/student/progress" element={<StudentProgress />} />
               </Route>

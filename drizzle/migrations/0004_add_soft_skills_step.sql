@@ -1,0 +1,2 @@
+ALTER TABLE public.course_soft_skills ADD COLUMN IF NOT EXISTS step text;
+ALTER TABLE public.course_soft_skills ADD CONSTRAINT course_soft_skills_step_check CHECK (step IS NULL OR step IN ('understand','prepare','practice')) NOT VALID;
