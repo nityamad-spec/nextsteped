@@ -69,6 +69,49 @@ const StudentLearningPath = () => {
   // Coding-exercise resources stay hidden unless an admin approved coding access.
   const { isApproved: codingApproved } = useCodingAccess(enrolledCourseId);
   const { taSettings } = useTASettings(enrolledCourseId);
+  // Employment-pathway courses show a four-stage pathway instead of a flat rail.
+  const { isEmployment } = useCourseType(enrolledCourseId);
+  const { labs: projectLabs } = useCourseProjectLabs(isEmployment ? enrolledCourseId : null, true);
+  const [targetRole, setTargetRole] = useState<string | null>(null);
+  const [softSkillsHours, setSoftSkillsHours] = useState<number | null>(null);
+  const [capstoneHours, setCapstoneHours] = useState<number | null>(null);
+  const [stageByDay, setStageByDay] = useState<Record<number, string | null>>({});
+  const [hoursByDay, setHoursByDay] = useState<Record<number, number | null>>({});
+
+  useEffect(() => {
+    if (!enrolledCourseId || !isEmployment) return;
+    let cancelled = false;
+    (async () => {
+      const [course, weeks] = await Promise.all([
+        supabase
+          .from("courses")
+          .select("target_role, soft_skills_hours, capstone_hours")
+          .eq("id", enrolledCourseId)
+          .maybeSingle(),
+        supabase
+          .from("lesson_plan_weeks")
+          .select("week_number, stage, est_hours")
+          .eq("course_id", enrolledCourseId),
+      ]);
+      if (cancelled) return;
+      if (course.data) {
+        setTargetRole(course.data.target_role ?? null);
+        setSoftSkillsHours(course.data.soft_skills_hours ?? null);
+        setCapstoneHours(course.data.capstone_hours ?? null);
+      }
+      const stages: Record<number, string | null> = {};
+      const hours: Record<number, number | null> = {};
+      (weeks.data ?? []).forEach((row) => {
+        stages[row.week_number] = row.stage ?? null;
+        hours[row.week_number] = row.est_hours ?? null;
+      });
+      setStageByDay(stages);
+      setHoursByDay(hours);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [enrolledCourseId, isEmployment]);
   const {
     courseName,
     currentWeek,
