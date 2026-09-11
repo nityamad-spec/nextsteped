@@ -389,6 +389,92 @@ const StudentLearningPath = () => {
   const openWeak = openUnit ? (weakConceptsByUnit[openUnit.day] ?? []) : [];
   const openVoids = openUnit ? (voidCounts[openUnit.day] ?? 0) : 0;
 
+  /** Rail + detail panel for a set of unit numbers (whole course, or one stage). */
+  const renderUnitArea = (days: number[]) => {
+    if (days.length === 0) {
+      return (
+        <Card>
+          <CardContent className="py-6 text-center text-sm text-muted-foreground">
+            No units in this stage yet.
+          </CardContent>
+        </Card>
+      );
+    }
+    const day = openUnitDay !== null && days.includes(openUnitDay) ? openUnitDay : days[0];
+    const unit = lessonPlan.find((w) => w.day === day);
+    if (!unit) return null;
+    const taken = takenQuizzes[unit.day];
+    const weak = weakConceptsByUnit[unit.day] ?? [];
+    const voids = voidCounts[unit.day] ?? 0;
+    const nextDay = days[days.indexOf(unit.day) + 1];
+
+    return (
+      <div className="space-y-4">
+        <UnitPathRail
+          days={days}
+          labels={unitLabels}
+          doneDays={doneDays}
+          currentDay={days.includes(displayedUnit) ? displayedUnit : days[0]}
+          selectedDay={unit.day}
+          onSelect={(d) => setSelectedUnit(d)}
+        />
+        <UnitDetailPanel
+          key={unit.day}
+          unitNumber={unit.day}
+          topic={unit.topic}
+          totalUnits={lessonPlan.length}
+          studied={!!studiedByUnit[unit.day]}
+          practised={!!practisedByUnit[unit.day]}
+          quizTaken={!!taken}
+          isCodingWeek={!!unit.is_coding_week}
+          exercises={exercisesByUnit[unit.day] ?? []}
+          completedExerciseIds={completedExerciseIds}
+          onOpenExercise={(ex) => navigate(`/student/chat?terminal=1&unit=${unit.day}&exercise=${ex.id}`)}
+          quizScore={taken?.score}
+          quizAvailable={availableQuizDays.has(unit.day)}
+          quizLocked={voids >= 2}
+          quizFinalAttempt={voids === 1}
+          readiness={readinessByUnit[unit.day] ?? 0}
+          weakConcepts={weak}
+          concepts={conceptsByUnit[unit.day] ?? []}
+          onStudyConcept={(concept, isWeak) => goToStudy(concept, isWeak && !!taken ? "weak" : "start")}
+          resources={
+            unit.is_coding_week
+              ? []
+              : (Array.isArray(unit.resources) ? unit.resources : []).filter(
+                  (r) => codingApproved || r?.type !== "coding-exercise",
+                )
+          }
+          activityDone={activityDone}
+          onToggleActivity={toggleActivityDone}
+          onStudy={() =>
+            goToStudy(
+              (taken ? weak[0] : unit.concepts?.[0]?.name) || unit.topic,
+              taken ? "weak" : "start",
+            )
+          }
+          onPractice={() => goToPractice(unit.day, taken && weak.length > 0 ? weak.join(", ") : unit.topic)}
+          practiceViaTerminal={codingApproved}
+          onTakeQuiz={() => attemptOpenQuiz(unit.day)}
+          onGoToNextUnit={() => nextDay && setSelectedUnit(nextDay)}
+        />
+      </div>
+    );
+  };
+
+  const pathway = isEmployment
+    ? buildPathwayStages({
+        days: lessonPlan.map((w) => w.day),
+        stageByDay,
+        hoursByDay,
+        doneDays,
+        softSkillsCount: softSkills.length,
+        softSkillsHours,
+        capstoneCount: projectLabs.length,
+        capstoneHours,
+      })
+    : null;
+
   return (
     <div className="p-6">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-6">
@@ -396,22 +482,24 @@ const StudentLearningPath = () => {
         {courseName && <p className="mt-1 text-sm text-muted-foreground">{courseName}</p>}
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
-        <Card>
-          <CardContent className="flex items-center gap-4 p-5">
-            <ProgressRing value={progressPct} />
-            <div className="min-w-0">
-              <p className="font-heading text-base font-bold">
-                You're on Unit {displayedUnit} — {readyUnitCount} of {lessonPlan.length || totalWeeks} units complete
-              </p>
-              <p className="mt-0.5 text-sm text-muted-foreground">
-                Reach {READINESS_THRESHOLD}% mastery in a unit to unlock the next. Study and practice keep raising your
-                mastery.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      </motion.div>
+      {!isEmployment && (
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
+          <Card>
+            <CardContent className="flex items-center gap-4 p-5">
+              <ProgressRing value={progressPct} />
+              <div className="min-w-0">
+                <p className="font-heading text-base font-bold">
+                  You're on Unit {displayedUnit} — {readyUnitCount} of {lessonPlan.length || totalWeeks} units complete
+                </p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  Reach {READINESS_THRESHOLD}% mastery in a unit to unlock the next. Study and practice keep raising your
+                  mastery.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
 
       <motion.div
         initial={{ opacity: 0, y: 10 }}
@@ -444,68 +532,67 @@ const StudentLearningPath = () => {
               No units are visible yet — check back soon
             </CardContent>
           </Card>
+        ) : pathway ? (
+          <PathwayStageList
+            trackLabel={targetRole || courseName || "Employment pathway"}
+            totalHours={pathway.totalHours}
+            overallPct={pathway.overallPct}
+            stages={pathway.stages}
+            onStageOpen={(stage) => {
+              if (stage.days.length > 0 && (openUnitDay === null || !stage.days.includes(openUnitDay))) {
+                setSelectedUnit(stage.days[0]);
+              }
+            }}
+            renderStage={(stage) => {
+              if (stage.kind === "foundations" || stage.kind === "advanced") {
+                return renderUnitArea(stage.days);
+              }
+              if (stage.kind === "soft_skills") {
+                return softSkills.length > 0 ? (
+                  <SoftSkillsUnitCard modules={softSkills} onStudy={(title) => goToStudy(title, "start")} />
+                ) : (
+                  <Card>
+                    <CardContent className="py-6 text-center text-sm text-muted-foreground">
+                      Your professor hasn't published soft skills modules yet.
+                    </CardContent>
+                  </Card>
+                );
+              }
+              return projectLabs.length > 0 ? (
+                <div className="space-y-2">
+                  {projectLabs.map((lab) => (
+                    <Card key={lab.id}>
+                      <CardContent className="flex items-center gap-3 p-4">
+                        <FlaskConical className="h-4 w-4 flex-none text-primary" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{lab.title}</p>
+                          {lab.summary && (
+                            <p className="truncate text-sm text-muted-foreground">{lab.summary}</p>
+                          )}
+                        </div>
+                        <Button size="sm" variant="outline" onClick={() => navigate("/student/project-lab")}>
+                          Open
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              ) : (
+                <Card>
+                  <CardContent className="py-6 text-center text-sm text-muted-foreground">
+                    Your professor hasn't published a capstone project yet.
+                  </CardContent>
+                </Card>
+              );
+            }}
+          />
         ) : (
           <>
-            <UnitPathRail
-              days={lessonPlan.map((w) => w.day)}
-              labels={unitLabels}
-              doneDays={doneDays}
-              currentDay={displayedUnit}
-              selectedDay={openUnit?.day ?? displayedUnit}
-              onSelect={(day) => setSelectedUnit(day)}
-            />
-
-            {openUnit && (
-              <UnitDetailPanel
-                key={openUnit.day}
-                unitNumber={openUnit.day}
-                topic={openUnit.topic}
-                totalUnits={lessonPlan.length}
-                studied={!!studiedByUnit[openUnit.day]}
-                practised={!!practisedByUnit[openUnit.day]}
-                quizTaken={!!openTaken}
-                isCodingWeek={!!openUnit.is_coding_week}
-                exercises={exercisesByUnit[openUnit.day] ?? []}
-                completedExerciseIds={completedExerciseIds}
-                onOpenExercise={(ex) => navigate(`/student/chat?terminal=1&unit=${openUnit.day}&exercise=${ex.id}`)}
-                quizScore={openTaken?.score}
-                quizAvailable={availableQuizDays.has(openUnit.day)}
-                quizLocked={openVoids >= 2}
-                quizFinalAttempt={openVoids === 1}
-                readiness={readinessByUnit[openUnit.day] ?? 0}
-                weakConcepts={openWeak}
-                concepts={conceptsByUnit[openUnit.day] ?? []}
-                onStudyConcept={(concept, isWeak) => goToStudy(concept, isWeak && !!openTaken ? "weak" : "start")}
-                resources={
-                  openUnit.is_coding_week
-                    ? []
-                    : (Array.isArray(openUnit.resources) ? openUnit.resources : []).filter(
-                        (r) => codingApproved || r?.type !== "coding-exercise",
-                      )
-                }
-                activityDone={activityDone}
-                onToggleActivity={toggleActivityDone}
-                onStudy={() =>
-                  goToStudy(
-                    (openTaken ? openWeak[0] : openUnit.concepts?.[0]?.name) || openUnit.topic,
-                    openTaken ? "weak" : "start",
-                  )
-                }
-                onPractice={() =>
-                  goToPractice(openUnit.day, openTaken && openWeak.length > 0 ? openWeak.join(", ") : openUnit.topic)
-                }
-                practiceViaTerminal={codingApproved}
-                onTakeQuiz={() => attemptOpenQuiz(openUnit.day)}
-                onGoToNextUnit={() => setSelectedUnit(openUnit.day + 1)}
-              />
+            {renderUnitArea(lessonPlan.map((w) => w.day))}
+            {softSkills.length > 0 && (
+              <SoftSkillsUnitCard modules={softSkills} onStudy={(title) => goToStudy(title, "start")} />
             )}
           </>
-        )}
-        {softSkills.length > 0 && (
-          <SoftSkillsUnitCard
-            modules={softSkills}
-            onStudy={(title) => goToStudy(title, "start")}
-          />
         )}
       </motion.div>
 
