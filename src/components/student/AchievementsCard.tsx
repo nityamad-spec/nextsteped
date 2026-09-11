@@ -1,6 +1,5 @@
 import { Card, CardContent, CardHeader } from "@/components/ui/card";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Medal } from "lucide-react";
 import type { Achievement } from "@/hooks/useAchievements";
 
 interface Props {
@@ -13,14 +12,9 @@ const AchievementsCard = ({ achievements, earnedCount }: Props) => {
     <Card className="h-full">
       <CardHeader className="pb-3">
         <div className="flex items-start justify-between gap-4">
-          <div className="flex items-start gap-3 min-w-0">
-            <div className="h-10 w-10 rounded-lg bg-primary/15 flex items-center justify-center shrink-0">
-              <Medal className="h-5 w-5 text-primary" />
-            </div>
-            <div className="min-w-0">
-              <h3 className="text-xl font-serif font-semibold leading-tight">Achievements</h3>
-              <p className="text-sm text-muted-foreground mt-0.5">Small wins that build momentum</p>
-            </div>
+          <div className="min-w-0">
+            <h3 className="text-xl font-heading font-semibold leading-tight">Achievements</h3>
+            <p className="text-sm text-muted-foreground mt-0.5">Small wins that build momentum</p>
           </div>
           <span className="text-xs text-muted-foreground border rounded-full px-3 py-1 shrink-0">
             {earnedCount} of {achievements.length} earned

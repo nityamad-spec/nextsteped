@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Newspaper, ExternalLink, RefreshCw, Sparkles, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
+import { ExternalLink, RefreshCw, Sparkles, AlertCircle, ChevronDown, ChevronUp } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -107,12 +107,7 @@ export function WhatsNewCard({ courseId, courseName }: WhatsNewCardProps) {
         <CardHeader className="pb-3">
           <div className="flex items-start justify-between gap-4">
             <div className="min-w-0 flex-1">
-              <CardTitle className="flex items-center gap-3 text-base">
-                <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary">
-                  <Newspaper className="h-4 w-4" />
-                </span>
-                What's new
-              </CardTitle>
+              <CardTitle className="text-xl font-heading font-semibold">What's new</CardTitle>
               <CardDescription className="mt-1">
                 {todayLabel}
                 {courseName ? ` · ${courseName}` : ""}

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Send, Loader2, ExternalLink, ClipboardList, AlertCircle, Mail } from "lucide-react";
+import { Send, Loader2, ExternalLink, Mail } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { toast } from "sonner";
@@ -57,14 +57,9 @@ const Feedback = () => {
       {/* Google Survey link */}
       <Card className="mb-6">
         <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <ClipboardList className="h-5 w-5" />
-            </div>
-            <div>
-              <CardTitle className="text-base">NextStep Feedback Survey</CardTitle>
-              <CardDescription>Help us improve by completing this short survey.</CardDescription>
-            </div>
+          <div>
+            <CardTitle className="text-xl font-heading font-semibold">NextStep Feedback Survey</CardTitle>
+            <CardDescription>Help us improve by completing this short survey.</CardDescription>
           </div>
         </CardHeader>
         <CardContent>
@@ -80,14 +75,9 @@ const Feedback = () => {
       {/* Open-ended feedback — always available */}
       <Card className="mb-6">
         <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
-              <Send className="h-5 w-5" />
-            </div>
-            <div>
-              <CardTitle className="text-base">Share Feedback Anytime</CardTitle>
-              <CardDescription>Have a thought or suggestion? Let us know.</CardDescription>
-            </div>
+          <div>
+            <CardTitle className="text-xl font-heading font-semibold">Share Feedback Anytime</CardTitle>
+            <CardDescription>Have a thought or suggestion? Let us know.</CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
@@ -112,20 +102,15 @@ const Feedback = () => {
       {/* Report an issue — emails info@nextsteped.com */}
       <Card>
         <CardHeader>
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
-              <AlertCircle className="h-5 w-5" />
-            </div>
-            <div>
-              <CardTitle className="text-base">Report an Issue</CardTitle>
-              <CardDescription>
-                Found a bug or something not working? Send us the details and we'll take a look. Reports are emailed to{" "}
-                <a href={`mailto:${ISSUE_EMAIL}`} className="underline underline-offset-2">
-                  {ISSUE_EMAIL}
-                </a>
-                .
-              </CardDescription>
-            </div>
+          <div>
+            <CardTitle className="text-xl font-heading font-semibold">Report an Issue</CardTitle>
+            <CardDescription>
+              Found a bug or something not working? Send us the details and we'll take a look. Reports are emailed to{" "}
+              <a href={`mailto:${ISSUE_EMAIL}`} className="underline underline-offset-2">
+                {ISSUE_EMAIL}
+              </a>
+              .
+            </CardDescription>
           </div>
         </CardHeader>
         <CardContent className="space-y-3">
