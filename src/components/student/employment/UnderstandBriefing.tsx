@@ -18,10 +18,12 @@ interface Props {
  * role overview, interview rounds, what interviewers test, and
  * company-specific notes for the demo openings.
  */
+const article = (word: string) => (/^[aeiou]/i.test(word) ? "an" : "a");
+
 const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
   <div className="space-y-4">
     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-      Step 1 · Understand — what a {targetRole} interview looks like
+      Step 1 · Understand — what {article(targetRole)} {targetRole} interview looks like
     </p>
 
     <Card>
