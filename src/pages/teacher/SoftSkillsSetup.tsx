@@ -50,6 +50,33 @@ const SoftSkillsSetup = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [expanded, setExpanded] = useState<string[]>([]);
+  // Target role shown to students on their employment-pathway home page.
+  const [targetRole, setTargetRole] = useState("");
+
+  useEffect(() => {
+    if (!courseId) { setTargetRole(""); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("courses")
+        .select("target_role")
+        .eq("id", courseId)
+        .maybeSingle();
+      if (!cancelled) setTargetRole(((data as any)?.target_role ?? "") as string);
+    })();
+    return () => { cancelled = true; };
+  }, [courseId]);
+
+  const saveTargetRole = async () => {
+    if (!courseId) return;
+    const { error } = await supabase
+      .from("courses")
+      .update({ target_role: targetRole.trim() || null } as any)
+      .eq("id", courseId);
+    if (error) {
+      toast({ title: "Could not save target role", description: error.message, variant: "destructive" });
+    }
+  };
 
   useEffect(() => {
     if (user && courseId) {
