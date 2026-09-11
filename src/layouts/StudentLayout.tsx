@@ -16,11 +16,12 @@ import { supabase } from "@/integrations/supabase/client";
 const studentNav = [
   { title: "Home", path: "/student/home", icon: Home },
   { title: "Learning Path", path: "/student/learning-path", icon: Route },
-  { title: "Career Readiness", path: "/student/career-readiness", icon: Briefcase },
+  { title: "Career Readiness", path: "/student/career-readiness", icon: Briefcase, sub: true },
+  { title: "Project Lab", path: "/student/project-lab", icon: FlaskConical, sub: true },
   { title: "Teaching Assistant", path: "/student/chat", icon: MessageSquare },
-  { title: "Project Lab", path: "/student/project-lab", icon: FlaskConical },
   { title: "Feedback", path: "/student/feedback", icon: MessageSquareHeart },
 ];
+
 
 const StudentLayout = () => {
   const { studentProfile } = useApp();
@@ -114,13 +115,14 @@ const StudentLayout = () => {
               key={item.path}
               to={item.path}
               end={false}
-              className="flex items-center gap-3 rounded-lg px-3 py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent"
+              className={`flex items-center gap-3 rounded-lg py-2 text-sm text-sidebar-foreground transition-colors hover:bg-sidebar-accent ${item.sub ? "ml-3 pl-4 pr-3 border-l border-sidebar-border" : "px-3"}`}
               activeClassName="bg-sidebar-accent text-primary font-medium"
             >
-              <item.icon className="h-4 w-4" />
+              <item.icon className={item.sub ? "h-3.5 w-3.5" : "h-4 w-4"} />
               {item.title}
             </NavLink>
           ))}
+
         </nav>
 
         {studentProfile && (
