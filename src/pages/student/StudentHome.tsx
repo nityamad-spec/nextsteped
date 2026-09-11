@@ -763,6 +763,20 @@ const StudentHome = () => {
         </Card>
       </motion.div>
 
+      {/* Employment pathway: role banner + daily DSA + matched openings */}
+      {isEmployment && (
+        <>
+          <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
+            <EmploymentPathwayHeader
+              trackLabel={`${targetRole?.trim() || courseName || "Employment"} Track · toward job-ready`}
+              progress={courseMastery}
+            />
+            <DailyDsaCard />
+          </div>
+          <MatchedOpeningsSection />
+        </>
+      )}
+
       {/* Concept Mastery + Achievements */}
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.12 }} className="mb-6 grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card className="h-full">
