@@ -98,6 +98,8 @@ const CareerReadinessSteps = ({ modules, onStudy, targetRole }: Props) => {
             setOpenModule(null);
           }}
         />
+      ) : active === "prepare" ? (
+        <StarStoryBuilder targetRole={targetRole} />
       ) : activeModules.length === 0 ? (
         <Card>
           <CardContent className="py-6 text-center text-sm text-muted-foreground">
