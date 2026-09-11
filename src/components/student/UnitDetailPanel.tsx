@@ -247,7 +247,7 @@ const UnitDetailPanel = ({
                 </Badge>
               )}
             </div>
-            <h2 className="truncate font-heading text-lg font-bold md:text-xl">{topic}</h2>
+            <h2 className="truncate font-heading text-xl font-semibold">{topic}</h2>
           </div>
         </div>
 
