@@ -580,24 +580,20 @@ const StudentLearningPath = () => {
                 );
               }
               return projectLabs.length > 0 ? (
-                <div className="space-y-2">
-                  {projectLabs.map((lab) => (
-                    <Card key={lab.id}>
-                      <CardContent className="flex items-center gap-3 p-4">
-                        <FlaskConical className="h-4 w-4 flex-none text-primary" />
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-sm font-medium">{lab.title}</p>
-                          {lab.summary && (
-                            <p className="truncate text-sm text-muted-foreground">{lab.summary}</p>
-                          )}
-                        </div>
-                        <Button size="sm" variant="outline" onClick={() => navigate("/student/project-lab")}>
-                          Open
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                <Card>
+                  <CardContent className="flex items-center gap-3 p-4">
+                    <FlaskConical className="h-4 w-4 flex-none text-primary" />
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium">Capstone Project</p>
+                      <p className="text-sm text-muted-foreground">
+                        Build and present your portfolio-ready project in Project Lab.
+                      </p>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={() => navigate("/student/project-lab")}>
+                      Open Project Lab
+                    </Button>
+                  </CardContent>
+                </Card>
               ) : (
                 <Card>
                   <CardContent className="py-6 text-center text-sm text-muted-foreground">
@@ -605,6 +601,7 @@ const StudentLearningPath = () => {
                   </CardContent>
                 </Card>
               );
+
             }}
           />
         ) : (
