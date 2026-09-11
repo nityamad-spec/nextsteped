@@ -24,6 +24,10 @@ import { useAchievements } from "@/hooks/useAchievements";
 import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness";
 import { useUnitProgress } from "@/hooks/useUnitProgress";
 import { computeUnitStage, normaliseConcept } from "@/lib/unitStage";
+import { useCourseType } from "@/hooks/useCourseType";
+import EmploymentPathwayHeader from "@/components/student/employment/EmploymentPathwayHeader";
+import DailyDsaCard from "@/components/student/employment/DailyDsaCard";
+import MatchedOpeningsSection from "@/components/student/employment/MatchedOpeningsSection";
 
 
 /* Concepts are loaded from the DB for the student's enrolled course.
@@ -98,6 +102,23 @@ const StudentHome = () => {
     Record<number, { score: number; correctAnswers: number; totalQuestions: number; timeSpent: number }>
   >({});
   const [availableQuizDays, setAvailableQuizDays] = useState<Set<number>>(new Set());
+  // Employment-pathway courses get an extra home layout (role, daily DSA, openings).
+  const { isEmployment } = useCourseType(enrolledCourseId);
+  const [targetRole, setTargetRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!enrolledCourseId || !isEmployment) { setTargetRole(null); return; }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("courses")
+        .select("target_role")
+        .eq("id", enrolledCourseId)
+        .maybeSingle();
+      if (!cancelled) setTargetRole((data as any)?.target_role ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [enrolledCourseId, isEmployment]);
   // Units (week numbers) that have at least one published coding exercise.
   const [codingExerciseUnits, setCodingExerciseUnits] = useState<Set<number>>(new Set());
 
