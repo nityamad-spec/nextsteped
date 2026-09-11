@@ -12,7 +12,7 @@ const CareerReadiness = () => {
   const { modules, loading } = useCourseSoftSkills(courseId, true);
 
   const goToStudy = (title: string) =>
-    navigate(`/student/chat?mode=study&topic=${encodeURIComponent(title)}`);
+    navigate(`/student/chat?newchat=true&mode=learning&concept=${encodeURIComponent(title)}&intent=start`);
 
   return (
     <div className="p-6">

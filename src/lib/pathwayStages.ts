@@ -103,9 +103,9 @@ export function buildPathwayStages(input: BuildPathwayStagesInput): PathwayStage
     {
       index: 3,
       kind: "soft_skills",
-      title: "Stage 3 · Soft Skills & Interview Prep",
-      badge: "Soft Skills",
-      description: "Interview structure, interview prep, and mock interviews — a different format from technical units.",
+      title: "Stage 3 · Career Readiness",
+      badge: "Career Readiness",
+      description: "Understand what's coming, prepare your stories, and practice until you're interview-ready.",
       days: [],
       itemCount: input.softSkillsCount,
       completeCount: 0,
