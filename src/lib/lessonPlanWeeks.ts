@@ -26,16 +26,27 @@ export async function upsertPublishedWeeks(
   overallOutcomes?: string,
 ): Promise<void> {
   // Preserve per-week metadata across the clean-slate republish: the question
-  // format mix and the manual coding/lab week designation.
+  // format mix, the manual coding/lab week designation, and the employment
+  // pathway stage + hour estimate.
   const { data: existing } = await supabase
     .from("lesson_plan_weeks")
-    .select("week_number, quiz_type_counts, is_coding_week")
+    .select("week_number, quiz_type_counts, is_coding_week, stage, est_hours")
     .eq("course_id", courseId);
   const mixByWeek = new Map<number, unknown>();
   const codingByWeek = new Map<number, boolean>();
-  for (const row of (existing ?? []) as { week_number: number; quiz_type_counts: unknown; is_coding_week: boolean }[]) {
+  const stageByWeek = new Map<number, string>();
+  const hoursByWeek = new Map<number, number>();
+  for (const row of (existing ?? []) as {
+    week_number: number;
+    quiz_type_counts: unknown;
+    is_coding_week: boolean;
+    stage: string | null;
+    est_hours: number | null;
+  }[]) {
     if (row.quiz_type_counts) mixByWeek.set(row.week_number, row.quiz_type_counts);
     if (row.is_coding_week) codingByWeek.set(row.week_number, true);
+    if (row.stage) stageByWeek.set(row.week_number, row.stage);
+    if (row.est_hours != null) hoursByWeek.set(row.week_number, row.est_hours);
   }
 
   // Delete existing rows for this course
@@ -57,6 +68,8 @@ export async function upsertPublishedWeeks(
       locked: !!w.locked,
       concepts: w.concepts || [],
       resources: w.resources || [],
+      stage: stageByWeek.get(w.week_number) ?? null,
+      est_hours: hoursByWeek.get(w.week_number) ?? null,
       quiz_type_counts: (mixByWeek.get(w.week_number) ?? null) as any,
     }));
     const { error: insError } = await supabase
