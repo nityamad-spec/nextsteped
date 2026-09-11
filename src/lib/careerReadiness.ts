@@ -18,3 +18,7 @@ export const CAREER_READINESS_STEPS: {
 /** Modules without a professor-set step fall back to Understand. */
 export const normalizeStep = (value: unknown): CareerReadinessStep =>
   value === "prepare" || value === "practice" ? value : "understand";
+
+/** Type guard for deep links (?step=…). */
+export const isCareerReadinessStep = (value: unknown): value is CareerReadinessStep =>
+  value === "understand" || value === "prepare" || value === "practice";

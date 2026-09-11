@@ -1,6 +1,6 @@
 import { motion } from "framer-motion";
 import { useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
@@ -10,9 +10,19 @@ import CareerReadinessSteps from "@/components/student/employment/CareerReadines
 /** Standalone Career Readiness page for employment-pathway students. */
 const CareerReadiness = () => {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const initialStep = searchParams.get("step");
   const courseId = useEnrolledCourseId();
   const { modules, loading } = useCourseSoftSkills(courseId, true);
   const [targetRole, setTargetRole] = useState<string | null>(null);
+
+  // Consume the ?step= deep link once so in-page step switching owns state.
+  useEffect(() => {
+    if (!searchParams.has("step")) return;
+    searchParams.delete("step");
+    setSearchParams(searchParams, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     if (!courseId) return;
@@ -51,7 +61,7 @@ const CareerReadiness = () => {
           </CardContent>
         </Card>
       ) : (
-        <CareerReadinessSteps modules={modules} targetRole={targetRole} onStudy={goToStudy} />
+        <CareerReadinessSteps modules={modules} targetRole={targetRole} onStudy={goToStudy} initialStep={initialStep} />
       )}
     </div>
   );
