@@ -52,6 +52,9 @@ const SoftSkillsSetup = () => {
   const [expanded, setExpanded] = useState<string[]>([]);
   // Target role shown to students on their employment-pathway home page.
   const [targetRole, setTargetRole] = useState("");
+  // Hour estimates for the two non-technical pathway stages.
+  const [softSkillsHours, setSoftSkillsHours] = useState("");
+  const [capstoneHours, setCapstoneHours] = useState("");
 
   useEffect(() => {
     if (!courseId) { setTargetRole(""); return; }
@@ -59,13 +62,29 @@ const SoftSkillsSetup = () => {
     (async () => {
       const { data } = await supabase
         .from("courses")
-        .select("target_role")
+        .select("target_role, soft_skills_hours, capstone_hours")
         .eq("id", courseId)
         .maybeSingle();
-      if (!cancelled) setTargetRole(((data as any)?.target_role ?? "") as string);
+      if (cancelled) return;
+      setTargetRole(((data as any)?.target_role ?? "") as string);
+      setSoftSkillsHours(((data as any)?.soft_skills_hours ?? "").toString());
+      setCapstoneHours(((data as any)?.capstone_hours ?? "").toString());
     })();
     return () => { cancelled = true; };
   }, [courseId]);
+
+  const saveStageHours = async (column: "soft_skills_hours" | "capstone_hours", raw: string) => {
+    if (!courseId) return;
+    const value = raw.trim() === "" ? null : Number(raw);
+    if (value !== null && (!Number.isFinite(value) || value < 0)) return;
+    const { error } = await supabase
+      .from("courses")
+      .update({ [column]: value } as any)
+      .eq("id", courseId);
+    if (error) {
+      toast({ title: "Could not save hours", description: error.message, variant: "destructive" });
+    }
+  };
 
   const saveTargetRole = async () => {
     if (!courseId) return;
@@ -237,18 +256,45 @@ const SoftSkillsSetup = () => {
         <CardHeader>
           <CardTitle className="text-base">Target role</CardTitle>
         </CardHeader>
-        <CardContent className="space-y-1.5">
-          <Input
-            value={targetRole}
-            placeholder="e.g. AI Engineer"
-            onChange={(e) => setTargetRole(e.target.value)}
-            onBlur={() => void saveTargetRole()}
-            className="max-w-sm"
-          />
-          <p className="text-xs text-muted-foreground">
-            Shown to students on their home page as their pathway track. Leave blank to use the
-            course name.
-          </p>
+        <CardContent className="space-y-4">
+          <div className="space-y-1.5">
+            <Input
+              value={targetRole}
+              placeholder="e.g. AI Engineer"
+              onChange={(e) => setTargetRole(e.target.value)}
+              onBlur={() => void saveTargetRole()}
+              className="max-w-sm"
+            />
+            <p className="text-xs text-muted-foreground">
+              Shown to students on their home page as their pathway track. Leave blank to use the
+              course name.
+            </p>
+          </div>
+          <div className="grid gap-4 sm:grid-cols-2 sm:max-w-lg">
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Soft skills hours</p>
+              <Input
+                type="number"
+                min={0}
+                value={softSkillsHours}
+                onChange={(e) => setSoftSkillsHours(e.target.value)}
+                onBlur={() => void saveStageHours("soft_skills_hours", softSkillsHours)}
+              />
+            </div>
+            <div className="space-y-1.5">
+              <p className="text-sm font-medium">Capstone hours</p>
+              <Input
+                type="number"
+                min={0}
+                value={capstoneHours}
+                onChange={(e) => setCapstoneHours(e.target.value)}
+                onBlur={() => void saveStageHours("capstone_hours", capstoneHours)}
+              />
+            </div>
+            <p className="text-xs text-muted-foreground sm:col-span-2">
+              Estimated hours for the Soft Skills and Capstone stages of the student pathway.
+            </p>
+          </div>
         </CardContent>
       </Card>
 

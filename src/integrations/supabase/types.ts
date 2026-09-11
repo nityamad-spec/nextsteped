@@ -1279,6 +1279,7 @@ export type Database = {
       courses: {
         Row: {
           branch: string[] | null
+          capstone_hours: number | null
           coding_access_status: string
           coding_requested_at: string | null
           coding_reviewed_at: string | null
@@ -1306,6 +1307,7 @@ export type Database = {
           sections: string[] | null
           session_length_minutes: number | null
           sessions_per_week: number | null
+          soft_skills_hours: number | null
           start_date: string | null
           syllabus_json_path: string | null
           syllabus_uploaded: boolean
@@ -1317,6 +1319,7 @@ export type Database = {
         }
         Insert: {
           branch?: string[] | null
+          capstone_hours?: number | null
           coding_access_status?: string
           coding_requested_at?: string | null
           coding_reviewed_at?: string | null
@@ -1344,6 +1347,7 @@ export type Database = {
           sections?: string[] | null
           session_length_minutes?: number | null
           sessions_per_week?: number | null
+          soft_skills_hours?: number | null
           start_date?: string | null
           syllabus_json_path?: string | null
           syllabus_uploaded?: boolean
@@ -1355,6 +1359,7 @@ export type Database = {
         }
         Update: {
           branch?: string[] | null
+          capstone_hours?: number | null
           coding_access_status?: string
           coding_requested_at?: string | null
           coding_reviewed_at?: string | null
@@ -1382,6 +1387,7 @@ export type Database = {
           sections?: string[] | null
           session_length_minutes?: number | null
           sessions_per_week?: number | null
+          soft_skills_hours?: number | null
           start_date?: string | null
           syllabus_json_path?: string | null
           syllabus_uploaded?: boolean
@@ -1824,6 +1830,7 @@ export type Database = {
           concepts: Json
           course_id: string
           created_at: string
+          est_hours: number | null
           exam_type: string | null
           id: string
           is_coding_week: boolean
@@ -1832,6 +1839,7 @@ export type Database = {
           overview: string
           quiz_type_counts: Json | null
           resources: Json
+          stage: string | null
           updated_at: string
           week_name: string
           week_number: number
@@ -1840,6 +1848,7 @@ export type Database = {
           concepts?: Json
           course_id: string
           created_at?: string
+          est_hours?: number | null
           exam_type?: string | null
           id?: string
           is_coding_week?: boolean
@@ -1848,6 +1857,7 @@ export type Database = {
           overview?: string
           quiz_type_counts?: Json | null
           resources?: Json
+          stage?: string | null
           updated_at?: string
           week_name?: string
           week_number: number
@@ -1856,6 +1866,7 @@ export type Database = {
           concepts?: Json
           course_id?: string
           created_at?: string
+          est_hours?: number | null
           exam_type?: string | null
           id?: string
           is_coding_week?: boolean
@@ -1864,6 +1875,7 @@ export type Database = {
           overview?: string
           quiz_type_counts?: Json | null
           resources?: Json
+          stage?: string | null
           updated_at?: string
           week_name?: string
           week_number?: number

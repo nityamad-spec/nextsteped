@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { motion, Reorder } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
+import { useCourseType } from "@/hooks/useCourseType";
 import { supabase } from "@/integrations/supabase/client";
 import {
   resolvePublishedPath,
@@ -90,6 +91,42 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
   const { toast } = useToast();
   const { user } = useAuth();
   const courseId = useTeacherCourseId();
+
+  // Employment-pathway courses stage each unit (Foundations / Advanced) and
+  // carry an hour estimate, both shown on the student pathway page.
+  const { isEmployment } = useCourseType(courseId);
+  const [weekMeta, setWeekMeta] = useState<Record<number, { stage: string | null; est_hours: number | null }>>({});
+
+  useEffect(() => {
+    if (!courseId || !isEmployment) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("lesson_plan_weeks")
+        .select("week_number, stage, est_hours")
+        .eq("course_id", courseId);
+      if (cancelled) return;
+      const map: Record<number, { stage: string | null; est_hours: number | null }> = {};
+      (data ?? []).forEach((r) => {
+        map[r.week_number] = { stage: r.stage ?? null, est_hours: r.est_hours ?? null };
+      });
+      setWeekMeta(map);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [courseId, isEmployment]);
+
+  const saveWeekMeta = async (week: number, patch: { stage?: string | null; est_hours?: number | null }) => {
+    setWeekMeta((prev) => ({ ...prev, [week]: { stage: null, est_hours: null, ...prev[week], ...patch } }));
+    if (!courseId) return;
+    const { error } = await supabase
+      .from("lesson_plan_weeks")
+      .update(patch)
+      .eq("course_id", courseId)
+      .eq("week_number", week);
+    if (error) toast({ title: "Could not save", description: error.message, variant: "destructive" });
+  };
 
   const [days, setDays] = useState<DayPlan[]>([]);
   const [loading, setLoading] = useState(true);
@@ -929,6 +966,48 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
                                 </Button>
                               </div>
                             )}
+
+                            {isEmployment && (
+                              <div className="grid gap-3 rounded-lg border border-dashed bg-muted/20 p-4 sm:grid-cols-2">
+                                <div className="space-y-1.5">
+                                  <Label className="text-sm font-medium">Pathway stage</Label>
+                                  <Select
+                                    value={weekMeta[dp.day]?.stage ?? "foundations"}
+                                    onValueChange={(v) => void saveWeekMeta(dp.day, { stage: v })}
+                                  >
+                                    <SelectTrigger className="h-9 text-sm"><SelectValue /></SelectTrigger>
+                                    <SelectContent>
+                                      <SelectItem value="foundations">Stage 1 · Foundations</SelectItem>
+                                      <SelectItem value="advanced">Stage 2 · Advanced Technical</SelectItem>
+                                    </SelectContent>
+                                  </Select>
+                                </div>
+                                <div className="space-y-1.5">
+                                  <Label className="text-sm font-medium">Estimated hours</Label>
+                                  <Input
+                                    type="number"
+                                    min={0}
+                                    className="h-9 text-sm"
+                                    value={weekMeta[dp.day]?.est_hours ?? ""}
+                                    onChange={(e) =>
+                                      setWeekMeta((prev) => ({
+                                        ...prev,
+                                        [dp.day]: {
+                                          stage: prev[dp.day]?.stage ?? null,
+                                          est_hours: e.target.value === "" ? null : Number(e.target.value),
+                                        },
+                                      }))
+                                    }
+                                    onBlur={(e) =>
+                                      void saveWeekMeta(dp.day, {
+                                        est_hours: e.target.value === "" ? null : Number(e.target.value),
+                                      })
+                                    }
+                                  />
+                                </div>
+                              </div>
+                            )}
+
 
                             {/* Lesson Description + Integrated Resources */}
                             <div className="space-y-3">
