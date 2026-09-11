@@ -234,6 +234,25 @@ const SoftSkillsSetup = () => {
       </div>
 
       <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Target role</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-1.5">
+          <Input
+            value={targetRole}
+            placeholder="e.g. AI Engineer"
+            onChange={(e) => setTargetRole(e.target.value)}
+            onBlur={() => void saveTargetRole()}
+            className="max-w-sm"
+          />
+          <p className="text-xs text-muted-foreground">
+            Shown to students on their home page as their pathway track. Leave blank to use the
+            course name.
+          </p>
+        </CardContent>
+      </Card>
+
+      <Card>
         <CardHeader className="flex flex-row items-center justify-between space-y-0">
           <CardTitle className="flex items-center gap-2 text-base">
             <Sparkles className="h-4 w-4 text-primary" />
