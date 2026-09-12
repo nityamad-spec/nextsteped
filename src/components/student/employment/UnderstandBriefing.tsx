@@ -42,7 +42,7 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
             heavy ones most.
           </p>
         </div>
-        <div className="relative space-y-3 before:absolute before:bottom-6 before:left-[1.1875rem] before:top-6 before:w-px before:bg-career-round-4-border">
+        <div className="relative space-y-3 before:absolute before:bottom-[3.75rem] before:left-[1.1875rem] before:top-6 before:w-px before:bg-career-round-4-border">
           {INTERVIEW_ROUNDS.map((round, i) => (
             <div
               key={round.title}
