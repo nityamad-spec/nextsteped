@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   COMMON_PROMPTS,
-  coveredThemes,
   DEMO_STAR_STORIES,
   MOST_TESTED_THEMES,
   STAR_TARGET_STORIES,
@@ -63,7 +62,7 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
   const [reviewing, setReviewing] = useState<StarStory | null>(null);
   const [improving, setImproving] = useState(false);
 
-  const covered = useMemo(() => coveredThemes(stories), [stories]);
+  
   const coverageSlots = Array.from({ length: STAR_TARGET_STORIES });
 
   const updateDraft = (patch: Partial<StarStory>) =>
