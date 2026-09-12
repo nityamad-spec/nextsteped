@@ -97,21 +97,39 @@ export default function CodingTerminalWidget({
     setOutput("");
   };
 
-  const handleRun = () => {
-    // TODO(judge0): replace with real Judge0 submission + polling.
+  const handleRun = async () => {
     setIsRunning(true);
     setOutput("");
-    setTimeout(() => {
-      const lineCount = code.split("\n").length;
-      setOutput(
-        [
-          `[placeholder] Judge0 integration coming soon — your code was not executed.`,
-          `Language: ${language.label}`,
-          `Lines: ${lineCount}`,
-        ].join("\n"),
-      );
+    try {
+      const { data, error } = await supabase.functions.invoke("run-code", {
+        body: { language: languageId, code },
+      });
+      if (error) {
+        const status = (error as { context?: { status?: number } })?.context?.status;
+        setOutput(
+          status === 503
+            ? "Code execution isn't set up yet. Please contact your instructor."
+            : `Could not run your code. ${error.message ?? ""}`.trim(),
+        );
+        return;
+      }
+      if (data?.error) {
+        setOutput(String(data.error));
+        return;
+      }
+      const parts: string[] = [];
+      if (data?.compileOutput) parts.push(String(data.compileOutput).trimEnd());
+      if (data?.stdout) parts.push(String(data.stdout).trimEnd());
+      if (data?.stderr) parts.push(String(data.stderr).trimEnd());
+      if (data?.message) parts.push(String(data.message).trimEnd());
+      if (parts.length === 0) parts.push(`(no output) — ${data?.status ?? "Finished"}`);
+      if (data?.time) parts.push(`\n[${data.status} · ${data.time}s]`);
+      setOutput(parts.join("\n"));
+    } catch (e) {
+      setOutput(`Could not run your code. ${e instanceof Error ? e.message : ""}`.trim());
+    } finally {
       setIsRunning(false);
-    }, 400);
+    }
   };
 
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
