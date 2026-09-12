@@ -1,12 +1,25 @@
 import { ArrowRight, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
 import {
   COMPANY_SPECIFIC_NOTES,
   INTERVIEW_ROUNDS,
   TESTED_QUESTIONS,
   TESTED_SKILLS,
 } from "@/lib/careerReadinessBriefing";
+
+const statusClass: Record<string, string> = {
+  Ready: "text-green-600 dark:text-green-400",
+  Stretch: "text-amber-600 dark:text-amber-400",
+  Early: "text-muted-foreground",
+};
+
+const barClass: Record<string, string> = {
+  Ready: "!bg-green-600 dark:!bg-green-400",
+  Stretch: "!bg-amber-600 dark:!bg-amber-400",
+  Early: "!bg-muted-foreground",
+};
 
 interface Props {
   targetRole: string;
@@ -33,7 +46,7 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
       Step 1 · Understand — what {article(targetRole)} {targetRole} interview looks like
     </p>
 
-    <Card className="border-career-round-1-border bg-career-rounds-surface">
+    <Card>
       <CardContent className="space-y-3 p-5">
         <div>
           <p className="text-sm font-semibold">The rounds you'll face</p>
@@ -113,12 +126,24 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
             list.
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
           {COMPANY_SPECIFIC_NOTES.map((c) => (
-            <div key={c.company} className="rounded-xl border bg-white p-5">
-              <p className="text-sm font-semibold">{c.company}</p>
-              <p className="mt-1 text-xs text-muted-foreground">{c.note}</p>
-            </div>
+            <Card key={c.company}>
+              <CardContent className="p-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary">
+                    {c.initial}
+                  </div>
+                  <p className="truncate text-sm font-semibold">{c.company}</p>
+                </div>
+                <p className="mt-3 text-sm text-muted-foreground">{c.note}</p>
+                <div className="mt-3 flex items-center gap-3">
+                  <Progress value={c.match} className="h-2 flex-1" indicatorClassName={barClass[c.status]} />
+                  <span className={`text-xs font-semibold ${statusClass[c.status]}`}>{c.status}</span>
+                  <span className="text-xs text-muted-foreground">{c.match}%</span>
+                </div>
+              </CardContent>
+            </Card>
           ))}
         </div>
       </CardContent>

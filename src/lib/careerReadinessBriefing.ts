@@ -19,7 +19,9 @@ export interface TestedQuestion {
 
 export interface CompanyNote {
   company: string;
-  statusLabel: string;
+  initial: string;
+  status: string;
+  match: number;
   note: string;
 }
 
@@ -88,6 +90,8 @@ const COMPANY_NOTES: Record<string, string> = {
 /** Notes for the same demo companies shown in "Openings matched to you". */
 export const COMPANY_SPECIFIC_NOTES: CompanyNote[] = DEMO_OPENINGS.map((o) => ({
   company: o.company,
-  statusLabel: `${o.status} ${o.match}%`,
+  initial: o.initial,
+  status: o.status,
+  match: o.match,
   note: COMPANY_NOTES[o.company] ?? "Interview details shared after shortlisting.",
 }));
