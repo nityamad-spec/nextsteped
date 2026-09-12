@@ -64,6 +64,10 @@ export default {
         "mastery-proficient": "hsl(var(--mastery-proficient))",
         "mastery-expert": "hsl(var(--mastery-expert))",
         "mastery-movedup": "hsl(var(--mastery-movedup))",
+        "openings-band": {
+          DEFAULT: "hsl(var(--openings-band))",
+          foreground: "hsl(var(--openings-band-foreground))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",

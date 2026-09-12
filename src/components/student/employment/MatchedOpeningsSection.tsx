@@ -16,7 +16,7 @@ const barClass: Record<string, string> = {
 
 /** Placeholder openings list — example data until employer matching is live. */
 const MatchedOpeningsSection = () => (
-  <section className="mb-6">
+  <section>
     <div className="mb-3 flex items-end justify-between gap-3">
       <div>
         <h2 className="text-xl font-heading font-semibold">Openings matched to you</h2>

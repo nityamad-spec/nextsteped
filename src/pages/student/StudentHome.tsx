@@ -773,7 +773,9 @@ const StudentHome = () => {
             />
             <DailyDsaCard />
           </div>
-          <MatchedOpeningsSection />
+          <div className="-mx-6 mb-6 bg-openings-band px-6 py-6">
+            <MatchedOpeningsSection />
+          </div>
         </>
       )}
 
