@@ -1,22 +1,23 @@
-# Fix "What to do today" stuck on loading
+# Color-code "Openings matched to you" progress bars
 
-## What's happening
+Match each opening's progress-bar fill color to its status label color on the student home page.
 
-On the Skill Training Test course, the "What to do today" box shows "Loading your activities…" forever.
+## What changes
 
-The section treats "the course has a published plan but no concept list yet" as "still loading". This course has a published six-week plan but its concept list is empty, so the box waits for something that will never arrive.
+1. **Progress component** — add an optional `indicatorClassName` prop to `src/components/ui/progress.tsx` so the filled portion can be styled independently of the track.
+2. **MatchedOpeningsSection** — in `src/components/student/employment/MatchedOpeningsSection.tsx`, map each status to a fill color:
+   - Ready → green
+   - Stretch → amber/orange
+   - Early → muted gray
+3. Pass the mapped class into `<Progress indicatorClassName={...} />` for each card.
 
-Confirmed from the live data: the plan is published, and the concepts request for this course returns an empty list.
+## Out of scope
 
-## The fix
+- No database or schema changes.
+- No behavior changes; only the bar color changes.
+- Other progress bars on the home page are not affected unless requested.
 
-Treat an empty concept list as a finished load rather than a pending one:
+## Verification
 
-- Track whether the concepts request has actually completed, and use that instead of "the list is non-empty".
-- Once it completes with nothing, the cards render normally using the lesson plan units, exactly as they do for courses that do have concepts.
-- Nothing else about the cards, ordering, quiz gating or the footer changes.
-
-## Technical notes
-
-- `src/pages/student/StudentHome.tsx`: add a `conceptsLoading` state set alongside the existing concepts fetch effect (true on start, false in every completion path including the error path and the "no course" early return). Replace the `concepts.length === 0 && lessonPlanPublished` term in `nextActionsLoading` with `conceptsLoading`.
-- No backend, schema or query changes.
+- TypeScript typecheck passes.
+- Preview shows green bar for Ready, amber bar for Stretch, gray bar for Early.
