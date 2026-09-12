@@ -8,6 +8,12 @@ const statusClass: Record<string, string> = {
   Early: "text-muted-foreground",
 };
 
+const barClass: Record<string, string> = {
+  Ready: "!bg-green-600 dark:!bg-green-400",
+  Stretch: "!bg-amber-600 dark:!bg-amber-400",
+  Early: "!bg-muted-foreground",
+};
+
 /** Placeholder openings list — example data until employer matching is live. */
 const MatchedOpeningsSection = () => (
   <section className="mb-6">
