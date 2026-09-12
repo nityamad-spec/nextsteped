@@ -158,7 +158,7 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
       <Card>
         <CardContent className="space-y-2 p-4">
           <div className="flex flex-wrap items-center justify-between gap-2">
-            <p className="text-sm font-semibold">Coverage</p>
+            <p className="text-sm font-semibold">Your STAR Stories</p>
             <p className="text-xs text-muted-foreground">
               {stories.length}/{STAR_TARGET_STORIES} stories · {covered.length}/
               {STAR_THEMES.length} themes
@@ -172,6 +172,38 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
                   i < stories.length ? "bg-primary" : "bg-muted"
                 }`}
               />
+            ))}
+          </div>
+          <div className="space-y-1.5 pt-1">
+            {stories.map((s) => (
+              <button
+                key={s.id}
+                type="button"
+                onClick={() => setReviewing(s)}
+                className="flex w-full items-center justify-between gap-2 rounded-lg border p-2.5 text-left transition-colors hover:bg-muted/50"
+              >
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold">{s.title}</p>
+                  <div className="mt-1 flex flex-wrap gap-1">
+                    {s.themes.slice(0, 2).map((t) => (
+                      <span
+                        key={t}
+                        className="rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary"
+                      >
+                        {t}
+                      </span>
+                    ))}
+                    {s.themes.length > 2 && (
+                      <span className="px-0.5 text-[11px] text-muted-foreground">
+                        +{s.themes.length - 2}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <span className="flex-none text-xs text-muted-foreground">
+                  {s.writtenLabel}
+                </span>
+              </button>
             ))}
           </div>
         </CardContent>
