@@ -42,23 +42,26 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
             heavy ones most.
           </p>
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="relative space-y-3 before:absolute before:bottom-6 before:left-[1.1875rem] before:top-6 before:w-px before:bg-career-round-4-border">
           {INTERVIEW_ROUNDS.map((round, i) => (
             <div
               key={round.title}
-              className={`flex min-h-40 flex-col rounded-lg border p-4 ${ROUND_STYLES[i]}`}
+              className="relative flex items-start gap-3 sm:gap-4"
             >
-              <div className="flex items-center justify-between gap-3">
-                <span className="flex h-7 w-7 flex-none items-center justify-center rounded-md border border-current/15 bg-background/60 text-xs font-bold">
+              <span className="relative z-10 mt-4 flex h-10 w-10 flex-none items-center justify-center rounded-full border-2 border-career-round-4-border bg-career-rounds-surface text-sm font-bold text-black dark:text-white">
+                {i + 1}
+              </span>
+              <div
+                className={`flex min-h-24 flex-1 flex-col justify-center rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 ${ROUND_STYLES[i]}`}
+              >
+                <div className="min-w-0">
+                  <p className="text-sm font-semibold">{round.title}</p>
+                  <p className="mt-1 text-xs leading-relaxed">{round.description}</p>
+                </div>
+                <span className="mt-3 flex-none rounded-md border border-current/20 bg-background/70 px-2.5 py-1 text-xs font-bold text-black dark:text-white sm:mt-0">
+                  {round.weight}%
                   {i + 1}
                 </span>
-                <span className="flex-none rounded-md border border-current/15 bg-background/60 px-2 py-0.5 text-xs font-bold">
-                  {round.weight}%
-                </span>
-              </div>
-              <div className="mt-4">
-                <p className="text-sm font-semibold">{round.title}</p>
-                <p className="mt-1 text-xs leading-relaxed opacity-75">{round.description}</p>
               </div>
             </div>
           ))}
