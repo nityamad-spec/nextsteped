@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  PlayCircle,
   Plus,
   ShieldCheck,
   Trash2,
@@ -40,6 +41,14 @@ import {
   type ValidationProgress,
   type ValidationReport,
 } from "@/lib/codingExercises";
+import {
+  canRunTests,
+  runReferenceAgainstTestCases,
+  summariseTestRun,
+  testRunBlockedReason,
+  type TestRunProgress,
+  type TestRunResult,
+} from "@/lib/codingExerciseTestRun";
 
 interface CodingExerciseDialogProps {
   open: boolean;
@@ -85,6 +94,11 @@ const CodingExerciseDialog = ({
   const [validating, setValidating] = useState(false);
   const [validationProgress, setValidationProgress] = useState<ValidationProgress | null>(null);
   const [report, setReport] = useState<ValidationReport | null>(null);
+  const [testRunning, setTestRunning] = useState(false);
+  const [testProgress, setTestProgress] = useState<TestRunProgress | null>(null);
+  const [testResults, setTestResults] = useState<TestRunResult[] | null>(null);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [openFailure, setOpenFailure] = useState<string | null>(null);
 
   const inReview =
     !!reviewIds && typeof reviewIndex === "number" && !!onReviewNavigate;
@@ -106,6 +120,10 @@ const CodingExerciseDialog = ({
         hidden_test_cases: exercise.hidden_test_cases.map((t) => ({ ...t })),
       });
       setReport(exercise.validation_report ?? null);
+      setTestResults(null);
+      setTestError(null);
+      setTestProgress(null);
+      setOpenFailure(null);
     }
   }, [open, exercise]);
 
@@ -139,6 +157,32 @@ const CodingExerciseDialog = ({
     }
   };
 
+  const testBlockedReason = testRunBlockedReason(draft);
+
+  const handleRunTests = async () => {
+    setTestRunning(true);
+    setTestError(null);
+    setTestResults(null);
+    setOpenFailure(null);
+    setTestProgress({ completed: 0, total: 0 });
+    try {
+      const results = await runReferenceAgainstTestCases(draft, (p) => setTestProgress(p));
+      setTestResults(results);
+      const { passed, total } = summariseTestRun(results);
+      toast({
+        title: `${passed} of ${total} test cases passed`,
+        description:
+          passed === total
+            ? "The reference solution matches every expected output."
+            : "Review the failing cases below — this doesn't block publishing.",
+      });
+    } catch (err: any) {
+      setTestError(err?.message || "Couldn't reach the code execution service.");
+    } finally {
+      setTestRunning(false);
+      setTestProgress(null);
+    }
+  };
 
   const set = <K extends keyof ExerciseDraft>(key: K, value: ExerciseDraft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
@@ -465,6 +509,122 @@ const CodingExerciseDialog = ({
               "hidden_test_cases",
               "Hidden / edge test cases",
               "Teachers only — never shown to students.",
+            )}
+          </div>
+
+          <div className="space-y-2 rounded-lg border p-3">
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <p className="text-sm font-medium">Test case check</p>
+                <p className="text-xs text-muted-foreground">
+                  Runs the reference solution against every standard and hidden test case.
+                  Output must match exactly. Results aren't saved and never block publishing.
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleRunTests()}
+                disabled={testRunning || saving || validating || !canRunTests(draft)}
+              >
+                {testRunning ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <PlayCircle className="mr-1.5 h-4 w-4" />
+                )}
+                {testRunning ? "Running…" : "Run test cases"}
+              </Button>
+            </div>
+
+            {testBlockedReason && !testRunning && (
+              <p className="text-xs italic text-muted-foreground">{testBlockedReason}</p>
+            )}
+
+            {testRunning && testProgress && (
+              <div className="space-y-1">
+                <Progress
+                  value={
+                    testProgress.total
+                      ? Math.round((testProgress.completed / testProgress.total) * 100)
+                      : 0
+                  }
+                  className="h-1.5"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Running test case{" "}
+                  {Math.min(testProgress.completed + 1, testProgress.total || 1)} of{" "}
+                  {testProgress.total || "…"}
+                </p>
+              </div>
+            )}
+
+            {testError && !testRunning && (
+              <p className="flex items-start gap-2 text-xs text-destructive">
+                <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{testError}</span>
+              </p>
+            )}
+
+            {!testRunning && testResults && testResults.length > 0 && (
+              <div className="space-y-1.5">
+                <p className="text-xs font-medium">
+                  {summariseTestRun(testResults).passed} of {testResults.length} passed
+                </p>
+                {testResults.map((r) => {
+                  const key = `${r.kind}-${r.index}`;
+                  const label = `${r.kind === "hidden" ? "Hidden" : "Standard"} test case ${r.index}`;
+                  return (
+                    <div key={key} className="rounded-md border p-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="flex min-w-0 items-center gap-2 text-xs">
+                          {r.passed ? (
+                            <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                          ) : (
+                            <XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" />
+                          )}
+                          <span className="truncate font-medium">{label}</span>
+                          <span className="text-muted-foreground">{r.status}</span>
+                        </span>
+                        {!r.passed && (
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="ghost"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => setOpenFailure(openFailure === key ? null : key)}
+                          >
+                            {openFailure === key ? "Hide" : "Details"}
+                          </Button>
+                        )}
+                      </div>
+                      {!r.passed && openFailure === key && (
+                        <div className="mt-2 space-y-1.5 text-xs">
+                          <div>
+                            <p className="text-muted-foreground">Expected output</p>
+                            <pre className="whitespace-pre-wrap rounded bg-muted p-2 font-mono">
+                              {r.expected || "(empty)"}
+                            </pre>
+                          </div>
+                          <div>
+                            <p className="text-muted-foreground">Actual output</p>
+                            <pre className="whitespace-pre-wrap rounded bg-muted p-2 font-mono">
+                              {r.actual || "(empty)"}
+                            </pre>
+                          </div>
+                          {r.message && (
+                            <div>
+                              <p className="text-muted-foreground">Error output</p>
+                              <pre className="whitespace-pre-wrap rounded bg-destructive/10 p-2 font-mono text-destructive">
+                                {r.message}
+                              </pre>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
 
