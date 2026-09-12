@@ -93,6 +93,11 @@ const CodingExerciseDialog = ({
   const [validating, setValidating] = useState(false);
   const [validationProgress, setValidationProgress] = useState<ValidationProgress | null>(null);
   const [report, setReport] = useState<ValidationReport | null>(null);
+  const [testRunning, setTestRunning] = useState(false);
+  const [testProgress, setTestProgress] = useState<TestRunProgress | null>(null);
+  const [testResults, setTestResults] = useState<TestRunResult[] | null>(null);
+  const [testError, setTestError] = useState<string | null>(null);
+  const [openFailure, setOpenFailure] = useState<string | null>(null);
 
   const inReview =
     !!reviewIds && typeof reviewIndex === "number" && !!onReviewNavigate;
