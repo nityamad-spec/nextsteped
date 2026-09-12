@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Plus, Sparkles, Loader2 } from "lucide-react";
+import { Sparkles, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -151,7 +151,7 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
           </p>
         </div>
         <Button onClick={() => setDraft(emptyStory())}>
-          <Plus className="mr-1.5 h-4 w-4" />+ New STAR story
+          + New STAR story
         </Button>
       </div>
 
