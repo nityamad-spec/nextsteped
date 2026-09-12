@@ -49,7 +49,7 @@ const ROUND_CIRCLE_STYLES = [
 
 const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
   <div className="space-y-4">
-    <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+    <p className="text-xs font-semibold uppercase tracking-wider text-black dark:text-white">
       Step 1 · Understand — what {article(targetRole)} {targetRole} interview looks like
     </p>
 
