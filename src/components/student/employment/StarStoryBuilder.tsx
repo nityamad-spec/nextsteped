@@ -222,47 +222,17 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
           </div>
         </CardContent>
       </Card>
-        <Card>
-          <CardContent className="space-y-2 p-4">
-            <p className="text-sm font-semibold">Common prompts</p>
-            {COMMON_PROMPTS.map((p) => (
-              <div key={p.question} className="rounded-lg border p-3">
-                <p className="text-sm font-semibold">{p.question}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{p.guidance}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="space-y-3 p-4">
-            <p className="text-sm font-semibold">Themes to cover</p>
-            <p className="text-xs text-muted-foreground">
-              Every round has a technical and a behavioural component tied to
-              specific themes. Prep 10–12 stories that each map to more than one.
-            </p>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Most tested for freshers
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {MOST_TESTED_THEMES.map((t) => (
-                  <span
-                    key={t}
-                    className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
-                      covered.includes(t)
-                        ? "border-primary/40 bg-primary/10 text-primary"
-                        : "text-muted-foreground"
-                    }`}
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
+      <Card>
+        <CardContent className="space-y-2 p-4">
+          <p className="text-sm font-semibold">Common prompts</p>
+          {COMMON_PROMPTS.map((p) => (
+            <div key={p.question} className="rounded-lg border p-3">
+              <p className="text-sm font-semibold">{p.question}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{p.guidance}</p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Dialog open={!!reviewing} onOpenChange={(o) => !o && setReviewing(null)}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
