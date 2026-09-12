@@ -21,7 +21,7 @@ const MockInterviewLab = () => (
   <div className="space-y-4">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div className="min-w-0">
-        <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        <p className="text-xs font-semibold uppercase tracking-wider text-black dark:text-white">
           Mock interview lab
         </p>
         <p className="mt-1 max-w-2xl text-sm text-muted-foreground">

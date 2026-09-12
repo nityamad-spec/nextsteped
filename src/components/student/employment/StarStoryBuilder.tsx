@@ -139,7 +139,7 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
     <div className="space-y-4">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+          <p className="text-xs font-semibold uppercase tracking-wider text-black dark:text-white">
             Step 2 · Prepare — STAR story builder · {stories.length}/
             {STAR_TARGET_STORIES}
           </p>
