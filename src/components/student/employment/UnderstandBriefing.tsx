@@ -33,7 +33,7 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
       Step 1 · Understand — what {article(targetRole)} {targetRole} interview looks like
     </p>
 
-    <Card className="border-career-round-1-border bg-career-rounds-surface">
+    <Card>
       <CardContent className="space-y-3 p-5">
         <div>
           <p className="text-sm font-semibold">The rounds you'll face</p>
