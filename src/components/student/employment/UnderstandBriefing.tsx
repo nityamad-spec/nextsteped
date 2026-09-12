@@ -60,7 +60,6 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
                 </div>
                 <span className="mt-3 flex-none rounded-md border border-current/20 bg-background/70 px-2.5 py-1 text-xs font-bold text-black dark:text-white sm:mt-0">
                   {round.weight}%
-                  {i + 1}
                 </span>
               </div>
             </div>
