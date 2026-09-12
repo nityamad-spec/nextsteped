@@ -34,10 +34,17 @@ interface Props {
 const article = (word: string) => (/^[aeiou]/i.test(word) ? "an" : "a");
 
 const ROUND_STYLES = [
-  "border-career-round-1-border bg-career-round-1 text-career-round-1-foreground",
-  "border-career-round-2-border bg-career-round-2 text-career-round-2-foreground",
-  "border-career-round-3-border bg-career-round-3 text-career-round-3-foreground",
-  "border-career-round-4-border bg-career-round-4 text-career-round-4-foreground",
+  "border-career-round-1 text-career-round-1-foreground",
+  "border-career-round-2 text-career-round-2-foreground",
+  "border-career-round-3 text-career-round-3-foreground",
+  "border-career-round-4 text-career-round-4-foreground",
+] as const;
+
+const ROUND_CIRCLE_STYLES = [
+  "border-career-round-1-border bg-career-round-1",
+  "border-career-round-2-border bg-career-round-2",
+  "border-career-round-3-border bg-career-round-3",
+  "border-career-round-4-border bg-career-round-4",
 ] as const;
 
 const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
@@ -61,11 +68,13 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
               key={round.title}
               className="relative flex items-start gap-3 sm:gap-4"
             >
-              <span className="relative z-10 mt-4 flex h-10 w-10 flex-none items-center justify-center rounded-full border-2 border-career-round-4-border bg-career-rounds-surface text-sm font-bold text-black dark:text-white">
+              <span
+                className={`relative z-10 mt-4 flex h-10 w-10 flex-none items-center justify-center rounded-full border-2 text-sm font-bold text-black dark:text-white ${ROUND_CIRCLE_STYLES[i]}`}
+              >
                 {i + 1}
               </span>
               <div
-                className={`flex min-h-24 flex-1 flex-col justify-center rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 ${ROUND_STYLES[i]}`}
+                className={`flex min-h-24 flex-1 flex-col justify-center rounded-lg border bg-transparent p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 ${ROUND_STYLES[i]}`}
               >
                 <div className="min-w-0">
                   <p className="text-sm font-semibold">{round.title}</p>
@@ -97,7 +106,7 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {TESTED_QUESTIONS.map((q) => (
-            <div key={q.question} className="rounded-xl border border-[#E8E3F7] p-5">
+            <div key={q.question} className="rounded-xl border border-[#E8E3F7] bg-white p-5">
               <p className="text-sm font-semibold">{q.question}</p>
               <p className="mt-1 text-xs text-muted-foreground">{q.guidance}</p>
             </div>
