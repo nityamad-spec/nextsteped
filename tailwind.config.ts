@@ -68,6 +68,27 @@ export default {
           DEFAULT: "hsl(var(--openings-band))",
           foreground: "hsl(var(--openings-band-foreground))",
         },
+        "career-rounds-surface": "hsl(var(--career-rounds-surface))",
+        "career-round-1": {
+          DEFAULT: "hsl(var(--career-round-1))",
+          foreground: "hsl(var(--career-round-1-foreground))",
+          border: "hsl(var(--career-round-1-border))",
+        },
+        "career-round-2": {
+          DEFAULT: "hsl(var(--career-round-2))",
+          foreground: "hsl(var(--career-round-2-foreground))",
+          border: "hsl(var(--career-round-2-border))",
+        },
+        "career-round-3": {
+          DEFAULT: "hsl(var(--career-round-3))",
+          foreground: "hsl(var(--career-round-3-foreground))",
+          border: "hsl(var(--career-round-3-border))",
+        },
+        "career-round-4": {
+          DEFAULT: "hsl(var(--career-round-4))",
+          foreground: "hsl(var(--career-round-4-foreground))",
+          border: "hsl(var(--career-round-4-border))",
+        },
         sidebar: {
           DEFAULT: "hsl(var(--sidebar-background))",
           foreground: "hsl(var(--sidebar-foreground))",

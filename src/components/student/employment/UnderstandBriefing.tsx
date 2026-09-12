@@ -20,13 +20,20 @@ interface Props {
  */
 const article = (word: string) => (/^[aeiou]/i.test(word) ? "an" : "a");
 
+const ROUND_STYLES = [
+  "border-career-round-1-border bg-career-round-1 text-career-round-1-foreground",
+  "border-career-round-2-border bg-career-round-2 text-career-round-2-foreground",
+  "border-career-round-3-border bg-career-round-3 text-career-round-3-foreground",
+  "border-career-round-4-border bg-career-round-4 text-career-round-4-foreground",
+] as const;
+
 const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
   <div className="space-y-4">
     <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
       Step 1 · Understand — what {article(targetRole)} {targetRole} interview looks like
     </p>
 
-    <Card>
+    <Card className="border-career-round-1-border bg-career-rounds-surface">
       <CardContent className="space-y-3 p-5">
         <div>
           <p className="text-sm font-semibold">The rounds you'll face</p>
@@ -35,24 +42,27 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
             heavy ones most.
           </p>
         </div>
-        {INTERVIEW_ROUNDS.map((round, i) => (
-          <div key={round.title} className="rounded-lg border p-3">
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-start gap-3">
-                <span className="flex h-6 w-6 flex-none items-center justify-center rounded-md bg-primary/10 text-xs font-bold text-primary">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {INTERVIEW_ROUNDS.map((round, i) => (
+            <div
+              key={round.title}
+              className={`flex min-h-40 flex-col rounded-lg border p-4 ${ROUND_STYLES[i]}`}
+            >
+              <div className="flex items-center justify-between gap-3">
+                <span className="flex h-7 w-7 flex-none items-center justify-center rounded-md border border-current/15 bg-background/60 text-xs font-bold">
                   {i + 1}
                 </span>
-                <div className="min-w-0">
-                  <p className="text-sm font-semibold">{round.title}</p>
-                  <p className="mt-0.5 text-xs text-muted-foreground">{round.description}</p>
-                </div>
+                <span className="flex-none rounded-md border border-current/15 bg-background/60 px-2 py-0.5 text-xs font-bold">
+                  {round.weight}%
+                </span>
               </div>
-              <span className="flex-none rounded-md bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">
-                {round.weight}%
-              </span>
+              <div className="mt-4">
+                <p className="text-sm font-semibold">{round.title}</p>
+                <p className="mt-1 text-xs leading-relaxed opacity-75">{round.description}</p>
+              </div>
             </div>
-          </div>
-        ))}
+          ))}
+        </div>
       </CardContent>
     </Card>
 

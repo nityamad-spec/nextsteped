@@ -49,6 +49,20 @@
     --openings-band: 214 80% 96%;
     --openings-band-foreground: 214 40% 25%;
 
+    --career-rounds-surface: 234 65% 97%;
+    --career-round-1: 234 80% 96%;
+    --career-round-1-foreground: 228 18% 18%;
+    --career-round-1-border: 234 55% 88%;
+    --career-round-2: 234 72% 91%;
+    --career-round-2-foreground: 230 25% 20%;
+    --career-round-2-border: 234 52% 80%;
+    --career-round-3: 234 62% 78%;
+    --career-round-3-foreground: 234 34% 19%;
+    --career-round-3-border: 234 48% 67%;
+    --career-round-4: 234 58% 53%;
+    --career-round-4-foreground: 0 0% 100%;
+    --career-round-4-border: 234 56% 44%;
+
     --sidebar-background: 228 14% 97%;
     --sidebar-foreground: 228 8% 30%;
     --sidebar-primary: 234 62% 52%;
@@ -91,6 +105,20 @@
 
     --openings-band: 214 35% 14%;
     --openings-band-foreground: 214 20% 85%;
+
+    --career-rounds-surface: 234 24% 13%;
+    --career-round-1: 234 22% 17%;
+    --career-round-1-foreground: 228 10% 93%;
+    --career-round-1-border: 234 26% 25%;
+    --career-round-2: 234 28% 23%;
+    --career-round-2-foreground: 228 10% 94%;
+    --career-round-2-border: 234 32% 32%;
+    --career-round-3: 234 38% 32%;
+    --career-round-3-foreground: 0 0% 97%;
+    --career-round-3-border: 234 40% 42%;
+    --career-round-4: 234 52% 45%;
+    --career-round-4-foreground: 0 0% 100%;
+    --career-round-4-border: 234 54% 55%;
 
     --sidebar-background: 228 14% 9%;
     --sidebar-foreground: 228 8% 70%;
