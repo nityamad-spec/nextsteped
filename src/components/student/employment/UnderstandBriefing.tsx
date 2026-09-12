@@ -68,11 +68,13 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
               key={round.title}
               className="relative flex items-start gap-3 sm:gap-4"
             >
-              <span className="relative z-10 mt-4 flex h-10 w-10 flex-none items-center justify-center rounded-full border-2 border-career-round-4-border bg-career-rounds-surface text-sm font-bold text-black dark:text-white">
+              <span
+                className={`relative z-10 mt-4 flex h-10 w-10 flex-none items-center justify-center rounded-full border-2 text-sm font-bold text-black dark:text-white ${ROUND_CIRCLE_STYLES[i]}`}
+              >
                 {i + 1}
               </span>
               <div
-                className={`flex min-h-24 flex-1 flex-col justify-center rounded-lg border p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 ${ROUND_STYLES[i]}`}
+                className={`flex min-h-24 flex-1 flex-col justify-center rounded-lg border bg-transparent p-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6 ${ROUND_STYLES[i]}`}
               >
                 <div className="min-w-0">
                   <p className="text-sm font-semibold">{round.title}</p>
