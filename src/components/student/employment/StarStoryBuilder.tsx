@@ -252,49 +252,56 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
         </Card>
       </div>
 
-      <div className="space-y-3">
-        {stories.map((s) => (
-          <Card key={s.id}>
-            <CardContent className="space-y-3 p-4">
-              <div className="flex flex-wrap items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="flex flex-wrap gap-1.5">
-                    {s.themes.map((t) => (
-                      <span
-                        key={t}
-                        className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary"
-                      >
-                        {t}
-                      </span>
-                    ))}
-                  </div>
-                  <p className="mt-1.5 text-sm font-semibold">{s.title}</p>
-                </div>
-                <div className="flex flex-none items-center gap-2">
-                  <span className="text-xs text-muted-foreground">
-                    {s.writtenLabel}
+      <Dialog open={!!reviewing} onOpenChange={(o) => !o && setReviewing(null)}>
+        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+          {reviewing && (
+            <>
+              <DialogHeader>
+                <DialogTitle>{reviewing.title}</DialogTitle>
+                <DialogDescription>
+                  Written {reviewing.writtenLabel}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="flex flex-wrap gap-1.5">
+                {reviewing.themes.map((t) => (
+                  <span
+                    key={t}
+                    className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary"
+                  >
+                    {t}
                   </span>
-                  <Button variant="outline" size="sm" onClick={() => setDraft(s)}>
-                    Edit
-                  </Button>
-                </div>
+                ))}
               </div>
-              <div className="grid gap-3 border-t pt-3 sm:grid-cols-2">
+              <div className="grid gap-4 sm:grid-cols-2">
                 {SECTIONS.map((sec) => (
                   <div key={sec.key}>
                     <p className="text-xs font-semibold uppercase tracking-wider text-primary">
                       {sec.label}
                     </p>
-                    <p className="mt-1 whitespace-pre-wrap text-xs text-muted-foreground">
-                      {s[sec.key] || "—"}
+                    <p className="mt-1 whitespace-pre-wrap text-sm text-muted-foreground">
+                      {reviewing[sec.key] || "—"}
                     </p>
                   </div>
                 ))}
               </div>
-            </CardContent>
-          </Card>
-        ))}
-      </div>
+              <DialogFooter>
+                <Button variant="ghost" onClick={() => setReviewing(null)}>
+                  Close
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setDraft(reviewing);
+                    setReviewing(null);
+                  }}
+                >
+                  Edit story
+                </Button>
+              </DialogFooter>
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!draft} onOpenChange={(o) => !o && setDraft(null)}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
