@@ -60,6 +60,7 @@ const PLACEHOLDERS: Record<string, string> = {
 const StarStoryBuilder = ({ targetRole }: Props) => {
   const [stories, setStories] = useState<StarStory[]>(DEMO_STAR_STORIES);
   const [draft, setDraft] = useState<StarStory | null>(null);
+  const [reviewing, setReviewing] = useState<StarStory | null>(null);
   const [improving, setImproving] = useState(false);
 
   const covered = useMemo(() => coveredThemes(stories), [stories]);
@@ -150,8 +151,7 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
           </p>
         </div>
         <Button onClick={() => setDraft(emptyStory())}>
-          <Plus className="mr-1.5 h-4 w-4" />
-          New story
+          <Plus className="mr-1.5 h-4 w-4" />+ New STAR story
         </Button>
       </div>
 
