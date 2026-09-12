@@ -37,7 +37,7 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
       <CardContent className="space-y-3 p-5">
         <div>
           <p className="text-sm font-semibold">The rounds you'll face</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">
+          <p className="mt-0.5 text-sm text-black dark:text-white">
             A typical {targetRole} loop, and how much each round weighs. Practice the
             heavy ones most.
           </p>
