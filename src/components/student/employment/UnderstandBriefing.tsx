@@ -68,18 +68,23 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
       </CardContent>
     </Card>
 
-    <Card>
+    <Card className="border-sky-100 bg-sky-50/50">
       <CardContent className="space-y-3 p-5">
-        <div>
-          <p className="text-sm font-semibold">What they're really testing</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            The common questions and what a strong answer looks like — read these before you
-            practice.
-          </p>
+        <div className="flex items-start gap-3">
+          <div className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-sky-500/10 text-sky-600">
+            <BookOpen className="h-5 w-5" />
+          </div>
+          <div>
+            <p className="text-sm font-semibold">What they're really testing</p>
+            <p className="mt-0.5 text-sm text-muted-foreground">
+              The common questions and what a strong answer looks like — read these before you
+              practice.
+            </p>
+          </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {TESTED_QUESTIONS.map((q) => (
-            <div key={q.question} className="rounded-lg border p-3">
+            <div key={q.question} className="rounded-xl border border-sky-100/50 bg-white p-5">
               <p className="text-sm font-semibold">{q.question}</p>
               <p className="mt-1 text-xs text-muted-foreground">{q.guidance}</p>
             </div>
@@ -90,7 +95,7 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
           {TESTED_SKILLS.map((skill) => (
             <span
               key={skill}
-              className="rounded-md bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary"
+              className="rounded-full border border-sky-100 bg-white px-2 py-0.5 text-xs font-medium text-sky-700"
             >
               {skill}
             </span>
