@@ -156,6 +156,32 @@ const CodingExerciseDialog = ({
     }
   };
 
+  const testBlockedReason = testRunBlockedReason(draft);
+
+  const handleRunTests = async () => {
+    setTestRunning(true);
+    setTestError(null);
+    setTestResults(null);
+    setOpenFailure(null);
+    setTestProgress({ completed: 0, total: 0 });
+    try {
+      const results = await runReferenceAgainstTestCases(draft, (p) => setTestProgress(p));
+      setTestResults(results);
+      const { passed, total } = summariseTestRun(results);
+      toast({
+        title: `${passed} of ${total} test cases passed`,
+        description:
+          passed === total
+            ? "The reference solution matches every expected output."
+            : "Review the failing cases below — this doesn't block publishing.",
+      });
+    } catch (err: any) {
+      setTestError(err?.message || "Couldn't reach the code execution service.");
+    } finally {
+      setTestRunning(false);
+      setTestProgress(null);
+    }
+  };
 
   const set = <K extends keyof ExerciseDraft>(key: K, value: ExerciseDraft[K]) =>
     setDraft((prev) => ({ ...prev, [key]: value }));
