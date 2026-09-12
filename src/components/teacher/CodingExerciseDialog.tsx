@@ -40,6 +40,14 @@ import {
   type ValidationProgress,
   type ValidationReport,
 } from "@/lib/codingExercises";
+import {
+  canRunTests,
+  runReferenceAgainstTestCases,
+  summariseTestRun,
+  testRunBlockedReason,
+  type TestRunProgress,
+  type TestRunResult,
+} from "@/lib/codingExerciseTestRun";
 
 interface CodingExerciseDialogProps {
   open: boolean;
