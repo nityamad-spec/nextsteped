@@ -160,8 +160,7 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-semibold">Your STAR Stories</p>
             <p className="text-xs text-muted-foreground">
-              {stories.length}/{STAR_TARGET_STORIES} stories · {covered.length}/
-              {STAR_THEMES.length} themes
+              {stories.length}/{STAR_TARGET_STORIES} stories
             </p>
           </div>
           <div className="flex gap-1.5">
