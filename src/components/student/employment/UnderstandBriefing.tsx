@@ -34,10 +34,17 @@ interface Props {
 const article = (word: string) => (/^[aeiou]/i.test(word) ? "an" : "a");
 
 const ROUND_STYLES = [
-  "border-career-round-1-border bg-career-round-1 text-career-round-1-foreground",
-  "border-career-round-2-border bg-career-round-2 text-career-round-2-foreground",
-  "border-career-round-3-border bg-career-round-3 text-career-round-3-foreground",
-  "border-career-round-4-border bg-career-round-4 text-career-round-4-foreground",
+  "border-career-round-1 text-career-round-1-foreground",
+  "border-career-round-2 text-career-round-2-foreground",
+  "border-career-round-3 text-career-round-3-foreground",
+  "border-career-round-4 text-career-round-4-foreground",
+] as const;
+
+const ROUND_CIRCLE_STYLES = [
+  "border-career-round-1-border bg-career-round-1",
+  "border-career-round-2-border bg-career-round-2",
+  "border-career-round-3-border bg-career-round-3",
+  "border-career-round-4-border bg-career-round-4",
 ] as const;
 
 const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
