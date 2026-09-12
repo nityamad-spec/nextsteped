@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useState } from "react";
 import { Sparkles, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -16,7 +16,6 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   COMMON_PROMPTS,
-  coveredThemes,
   DEMO_STAR_STORIES,
   MOST_TESTED_THEMES,
   STAR_TARGET_STORIES,
@@ -63,7 +62,7 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
   const [reviewing, setReviewing] = useState<StarStory | null>(null);
   const [improving, setImproving] = useState(false);
 
-  const covered = useMemo(() => coveredThemes(stories), [stories]);
+  
   const coverageSlots = Array.from({ length: STAR_TARGET_STORIES });
 
   const updateDraft = (patch: Partial<StarStory>) =>
@@ -160,8 +159,7 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-sm font-semibold">Your STAR Stories</p>
             <p className="text-xs text-muted-foreground">
-              {stories.length}/{STAR_TARGET_STORIES} stories · {covered.length}/
-              {STAR_THEMES.length} themes
+              {stories.length}/{STAR_TARGET_STORIES} stories
             </p>
           </div>
           <div className="flex gap-1.5">
@@ -206,51 +204,34 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
               </button>
             ))}
           </div>
+          <div className="border-t pt-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Themes most-tested for freshers
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {MOST_TESTED_THEMES.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
         </CardContent>
       </Card>
-
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Card>
-          <CardContent className="space-y-2 p-4">
-            <p className="text-sm font-semibold">Common prompts</p>
-            {COMMON_PROMPTS.map((p) => (
-              <div key={p.question} className="rounded-lg border p-3">
-                <p className="text-sm font-semibold">{p.question}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground">{p.guidance}</p>
-              </div>
-            ))}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardContent className="space-y-3 p-4">
-            <p className="text-sm font-semibold">Themes to cover</p>
-            <p className="text-xs text-muted-foreground">
-              Every round has a technical and a behavioural component tied to
-              specific themes. Prep 10–12 stories that each map to more than one.
-            </p>
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-                Most tested for freshers
-              </p>
-              <div className="mt-2 flex flex-wrap gap-2">
-                {MOST_TESTED_THEMES.map((t) => (
-                  <span
-                    key={t}
-                    className={`rounded-md border px-2 py-0.5 text-xs font-semibold ${
-                      covered.includes(t)
-                        ? "border-primary/40 bg-primary/10 text-primary"
-                        : "text-muted-foreground"
-                    }`}
-                  >
-                    {t}
-                  </span>
-                ))}
-              </div>
+      <Card>
+        <CardContent className="space-y-2 p-4">
+          <p className="text-sm font-semibold">Common prompts</p>
+          {COMMON_PROMPTS.map((p) => (
+            <div key={p.question} className="rounded-lg border p-3">
+              <p className="text-sm font-semibold">{p.question}</p>
+              <p className="mt-0.5 text-xs text-muted-foreground">{p.guidance}</p>
             </div>
-          </CardContent>
-        </Card>
-      </div>
+          ))}
+        </CardContent>
+      </Card>
 
       <Dialog open={!!reviewing} onOpenChange={(o) => !o && setReviewing(null)}>
         <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
