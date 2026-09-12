@@ -106,7 +106,7 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {TESTED_QUESTIONS.map((q) => (
-            <div key={q.question} className="rounded-xl border border-[#E8E3F7] p-5">
+            <div key={q.question} className="rounded-xl border border-[#E8E3F7] bg-white p-5">
               <p className="text-sm font-semibold">{q.question}</p>
               <p className="mt-1 text-xs text-muted-foreground">{q.guidance}</p>
             </div>
