@@ -8,6 +8,12 @@ const statusClass: Record<string, string> = {
   Early: "text-muted-foreground",
 };
 
+const barClass: Record<string, string> = {
+  Ready: "!bg-green-600 dark:!bg-green-400",
+  Stretch: "!bg-amber-600 dark:!bg-amber-400",
+  Early: "!bg-muted-foreground",
+};
+
 /** Placeholder openings list — example data until employer matching is live. */
 const MatchedOpeningsSection = () => (
   <section className="mb-6">
@@ -40,7 +46,7 @@ const MatchedOpeningsSection = () => (
             <p className="text-sm text-muted-foreground">{o.salary}</p>
 
             <div className="mt-3 flex items-center gap-3">
-              <Progress value={o.match} className="h-2 flex-1" />
+              <Progress value={o.match} className="h-2 flex-1" indicatorClassName={barClass[o.status]} />
               <span className={`text-xs font-semibold ${statusClass[o.status]}`}>{o.status}</span>
               <span className="text-xs text-muted-foreground">{o.match}%</span>
             </div>
