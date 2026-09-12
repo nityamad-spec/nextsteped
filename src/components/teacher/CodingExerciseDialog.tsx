@@ -9,6 +9,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Loader2,
+  PlayCircle,
   Plus,
   ShieldCheck,
   Trash2,
