@@ -68,10 +68,10 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
       </CardContent>
     </Card>
 
-    <Card className="border-sky-100 bg-sky-50/50">
+    <Card className="border-[#E8E3F7] bg-[#F9F7FE]">
       <CardContent className="space-y-3 p-5">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-sky-500/10 text-sky-600">
+          <div className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-[#4C1D95]/10 text-[#4C1D95]">
             <BookOpen className="h-5 w-5" />
           </div>
           <div>
@@ -84,18 +84,18 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {TESTED_QUESTIONS.map((q) => (
-            <div key={q.question} className="rounded-xl border border-sky-100/50 bg-white p-5">
+            <div key={q.question} className="rounded-xl border border-[#E8E3F7] bg-white p-5">
               <p className="text-sm font-semibold">{q.question}</p>
               <p className="mt-1 text-xs text-muted-foreground">{q.guidance}</p>
             </div>
           ))}
         </div>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-semibold text-primary">Most-tested for freshers:</span>
+          <span className="text-xs font-semibold text-[#4C1D95]">Most-tested for freshers:</span>
           {TESTED_SKILLS.map((skill) => (
             <span
               key={skill}
-              className="rounded-full border border-sky-100 bg-white px-2 py-0.5 text-xs font-medium text-sky-700"
+              className="rounded-full border border-[#E8E3F7] bg-white px-2 py-0.5 text-xs font-medium text-[#4C1D95]"
             >
               {skill}
             </span>
@@ -115,10 +115,8 @@ const UnderstandBriefing = ({ targetRole, onGoToPrepare }: Props) => (
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
           {COMPANY_SPECIFIC_NOTES.map((c) => (
-            <div key={c.company} className="rounded-lg border p-3">
-              <p className="text-sm font-semibold">
-                {c.company} · <span className="text-primary">{c.statusLabel}</span>
-              </p>
+            <div key={c.company} className="rounded-xl border bg-white p-5">
+              <p className="text-sm font-semibold">{c.company}</p>
               <p className="mt-1 text-xs text-muted-foreground">{c.note}</p>
             </div>
           ))}
