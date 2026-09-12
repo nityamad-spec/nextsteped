@@ -119,6 +119,10 @@ const CodingExerciseDialog = ({
         hidden_test_cases: exercise.hidden_test_cases.map((t) => ({ ...t })),
       });
       setReport(exercise.validation_report ?? null);
+      setTestResults(null);
+      setTestError(null);
+      setTestProgress(null);
+      setOpenFailure(null);
     }
   }, [open, exercise]);
 
