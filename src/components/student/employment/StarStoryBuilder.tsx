@@ -205,10 +205,23 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
               </button>
             ))}
           </div>
+          <div className="border-t pt-3">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Themes most-tested for freshers
+            </p>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {MOST_TESTED_THEMES.map((t) => (
+                <span
+                  key={t}
+                  className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary"
+                >
+                  {t}
+                </span>
+              ))}
+            </div>
+          </div>
         </CardContent>
       </Card>
-
-      <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardContent className="space-y-2 p-4">
             <p className="text-sm font-semibold">Common prompts</p>
