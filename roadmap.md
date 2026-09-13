@@ -1,4 +1,5 @@
 # Roadmap
 
-- [x] Restyle Career Readiness interview rounds with a horizontal indigo progression
-- [x] Restyle Career Readiness interview rounds as a vertical indigo-blue progression
+- [ ] Polish Prepare text and Common prompts colors
+- [ ] Gate Practice until five student-created STAR stories are saved in-session
+- [ ] Add focused tests and verify desktop/mobile behavior
