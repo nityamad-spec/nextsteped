@@ -151,28 +151,37 @@ function LiveScreen({
                 {checked.size}/{config.checklist.length} habits
               </p>
             </div>
-            <div className="space-y-2">
+            <div className="space-y-2" role="list">
               {config.checklist.map((item) => {
                 const isChecked = checked.has(item.id);
                 return (
-                  <button
+                  <div
                     key={item.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => toggle(item.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter" || e.key === " ") {
+                        e.preventDefault();
+                        toggle(item.id);
+                      }
+                    }}
                     className={cn(
-                      "flex w-full items-start gap-3 rounded-lg border p-3 text-left transition-colors",
+                      "flex w-full cursor-pointer items-start gap-3 rounded-lg border p-3 text-left transition-colors",
                       isChecked ? "bg-primary/5 border-primary/30" : "hover:bg-muted/50"
                     )}
+                    aria-pressed={isChecked}
                   >
                     <Checkbox
                       checked={isChecked}
                       onCheckedChange={() => toggle(item.id)}
-                      className="mt-0.5"
+                      className="mt-0.5 pointer-events-none"
                       aria-label={item.label}
                     />
                     <span className={cn("text-sm", isChecked && "line-through opacity-60")}>
                       {item.label}
                     </span>
-                  </button>
+                  </div>
                 );
               })}
             </div>
