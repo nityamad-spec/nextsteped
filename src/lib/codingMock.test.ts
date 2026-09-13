@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   CODING_COACH_CHECKLIST,
+  CODING_MOCK_CONFIG,
   CODING_MOCK_MINUTES,
   CODING_PREP_STEPS,
   CODING_PROMPT,
   CODING_REVIEW_NOTES,
+  SYSTEM_DESIGN_MOCK_CONFIG,
   formatElapsedTime,
 } from "./codingMock";
 
