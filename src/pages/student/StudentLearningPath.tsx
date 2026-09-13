@@ -553,7 +553,7 @@ const StudentLearningPath = () => {
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold uppercase tracking-wide text-primary">You're here</p>
                 <p className="mt-0.5 font-heading text-base font-bold">
-                  {hereStage ? `Stage ${hereStage.index} · ${hereStage.title} · ` : ""}
+                  {hereStage ? ` · ` : ""}
                   Unit {hereUnit.day} — {hereUnit.topic}
                 </p>
                 <p className="mt-0.5 text-sm text-muted-foreground">
