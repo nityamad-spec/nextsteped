@@ -360,7 +360,7 @@ const StudentLearningPath = () => {
 
   const attemptOpenQuiz = (day: number) => {
     if (diagnosticTaken === false) {
-      setDiagGate({ open: true, context: "Weekly quizzes unlock once you've completed the diagnostic." });
+      setDiagGate({ open: true, context: "Unit quizzes unlock once you've completed the diagnostic." });
       return;
     }
     setQuizDialog({ open: true, day });
@@ -410,6 +410,14 @@ const StudentLearningPath = () => {
   const openWeak = openUnit ? (weakConceptsByUnit[openUnit.day] ?? []) : [];
   const openVoids = openUnit ? (voidCounts[openUnit.day] ?? 0) : 0;
 
+  // Students move through the units in order: the first unit not yet at the
+  // mastery goal is the only one they can act on. Later units stay readable.
+  const activeUnit =
+    lessonPlan.find((w) => (readinessByUnit[w.day] ?? 0) < READINESS_THRESHOLD)?.day ??
+    lessonPlan[lessonPlan.length - 1]?.day ??
+    null;
+  const isUnitLocked = (day: number) => activeUnit !== null && day > activeUnit;
+
   /** Rail + detail panel for a set of unit numbers (whole course, or one stage). */
   const renderUnitArea = (days: number[]) => {
     if (days.length === 0) {
@@ -428,6 +436,7 @@ const StudentLearningPath = () => {
     const weak = weakConceptsByUnit[unit.day] ?? [];
     const voids = voidCounts[unit.day] ?? 0;
     const nextDay = days[days.indexOf(unit.day) + 1];
+    const locked = isUnitLocked(unit.day);
 
     return (
       <div className="space-y-4">
@@ -478,6 +487,12 @@ const StudentLearningPath = () => {
           practiceViaTerminal={codingApproved}
           onTakeQuiz={() => attemptOpenQuiz(unit.day)}
           onGoToNextUnit={() => nextDay && setSelectedUnit(nextDay)}
+          locked={locked}
+          unlockHint={
+            activeUnit !== null
+              ? `Reach ${READINESS_THRESHOLD}% mastery in Unit ${activeUnit} to unlock this unit.`
+              : undefined
+          }
         />
       </div>
     );
@@ -495,6 +510,12 @@ const StudentLearningPath = () => {
         capstoneHours,
       })
     : null;
+
+  // "You're here" line: the unit the student can act on right now, plus the
+  // stage it belongs to on employment courses.
+  const hereUnit = lessonPlan.find((w) => w.day === activeUnit) ?? null;
+  const hereStage = pathway?.stages.find((s) => hereUnit && s.days.includes(hereUnit.day)) ?? null;
+  const hereMastery = hereUnit ? (readinessByUnit[hereUnit.day] ?? 0) : 0;
 
   return (
     <div className="p-6">
@@ -515,6 +536,28 @@ const StudentLearningPath = () => {
                 <p className="mt-0.5 text-sm text-muted-foreground">
                   Reach {READINESS_THRESHOLD}% mastery in a unit to unlock the next. Study and practice keep raising your
                   mastery.
+                </p>
+              </div>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {hereUnit && (
+        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
+          <Card className="border-primary/30 bg-primary/5">
+            <CardContent className="flex flex-wrap items-center gap-4 p-5">
+              <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-primary text-base font-bold text-primary-foreground">
+                {hereUnit.day}
+              </span>
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold uppercase tracking-wide text-primary">You're here</p>
+                <p className="mt-0.5 font-heading text-base font-bold">
+                  {hereStage ? hereStage.title + " · " : ""}
+                  Unit {hereUnit.day} — {hereUnit.topic}
+                </p>
+                <p className="mt-0.5 text-sm text-muted-foreground">
+                  {hereMastery}% mastery · goal {READINESS_THRESHOLD}%. Later units open once this one hits the goal.
                 </p>
               </div>
             </CardContent>

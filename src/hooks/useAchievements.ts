@@ -101,7 +101,7 @@ export const useAchievements = (
       label: "First Steps",
       emoji: "🚀",
       earned: hasWeek1Quiz && openedLpThisWeek,
-      tooltip: `Complete Unit 1: weekly quiz ${hasWeek1Quiz ? "✓" : "✗"} · readings ${openedLpThisWeek ? "✓" : "✗"}`,
+      tooltip: `Complete Unit 1: unit quiz ${hasWeek1Quiz ? "✓" : "✗"} · readings ${openedLpThisWeek ? "✓" : "✗"}`,
       howTo: {
         title: "Complete Unit 1 basics",
         steps: [
@@ -178,9 +178,9 @@ export const useAchievements = (
       label: "Consistency",
       emoji: "🔥",
       earned: consistencyCount >= 2,
-      tooltip: `Take weekly quizzes 2 weeks in a row · ${consistencyCount}/2 weeks`,
+      tooltip: `Take unit quizzes 2 weeks in a row · ${consistencyCount}/2 weeks`,
       howTo: {
-        title: "Take a weekly quiz two weeks in a row",
+        title: "Take a unit quiz two weeks in a row",
         steps: [
           { label: "Last week's quiz", done: tookPrevWk },
           { label: "This week's quiz", done: tookThisWk },

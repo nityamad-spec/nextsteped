@@ -290,7 +290,7 @@ const StudentHome = () => {
   // Gate helpers: block assessment-scored surfaces until diagnostic is done.
   const attemptOpenQuiz = (day: number) => {
     if (diagnosticTaken === false) {
-      setDiagGate({ open: true, context: "Weekly quizzes unlock once you've completed the diagnostic." });
+      setDiagGate({ open: true, context: "Unit quizzes unlock once you've completed the diagnostic." });
       return;
     }
     setQuizDialog({ open: true, day });
@@ -483,7 +483,7 @@ const StudentHome = () => {
             action: () => attemptOpenQuiz(focusUnit),
             category: "WEEKLY QUIZ",
             visualCategory: "quiz",
-            badgeLabel: "Weekly Quiz",
+            badgeLabel: "Unit Quiz",
             badgeTone: "neutral",
             metadata: quizMetadata,
             buttonLabel: "Take quiz",
@@ -529,7 +529,7 @@ const StudentHome = () => {
             action: () => (quizOpen ? attemptOpenQuiz(focusUnit) : navigate(practiceHref)),
             category: "WEEKLY QUIZ",
             visualCategory: "quiz",
-            badgeLabel: "Weekly Quiz",
+            badgeLabel: "Unit Quiz",
             badgeTone: "neutral",
             metadata: quizOpen ? quizMetadata : "Opens later",
             buttonLabel: quizOpen ? "Take quiz" : "Keep practising",

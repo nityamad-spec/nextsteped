@@ -50,6 +50,10 @@ export interface UnitDetailPanelProps {
   onTakeQuiz: () => void;
   onGoToNextUnit?: () => void;
   practiceViaTerminal?: boolean;
+  /** Earlier units aren't at the mastery goal yet — read-only view. */
+  locked?: boolean;
+  /** Short line explaining what unlocks this unit. */
+  unlockHint?: string;
 }
 
 type StepState = "done" | "active" | "todo" | "locked";
@@ -161,6 +165,8 @@ const UnitDetailPanel = ({
   onTakeQuiz,
   onGoToNextUnit,
   practiceViaTerminal = false,
+  locked = false,
+  unlockHint,
 }: UnitDetailPanelProps) => {
   const [showExercises, setShowExercises] = useState(false);
   const stage = computeUnitStage({ studied, practised, quizTaken, readiness, quizExempt: isCodingWeek });
@@ -177,7 +183,7 @@ const UnitDetailPanel = ({
   let moveTitle = "Start studying";
   let moveBody = isCodingWeek
     ? "Work through this unit with your tutor, then practise it hands-on in the code terminal."
-    : "Work through this unit with your tutor, practise a few questions, then take the weekly quiz.";
+    : "Work through this unit with your tutor, practise a few questions, then take the unit quiz.";
   let moveAction = "Start studying";
   let moveOnClick = onStudy;
 
@@ -274,14 +280,28 @@ const UnitDetailPanel = ({
       {/* Your next move */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-card p-4">
         <div className="min-w-[240px] flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary">Your next move</p>
-          <p className="mt-1 font-heading text-base font-bold">{moveTitle}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{moveBody}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+            {locked ? "Not yet unlocked" : "Your next move"}
+          </p>
+          <p className="mt-1 font-heading text-base font-bold">
+            {locked ? "Finish the earlier units first" : moveTitle}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {locked
+              ? (unlockHint ?? `Reach ${READINESS_THRESHOLD}% mastery in the earlier units to unlock this one.`)
+              : moveBody}
+          </p>
         </div>
-        <Button size="lg" onClick={moveOnClick}>
-          {moveAction}
-          {ready && !isLastUnit && <ArrowRight className="ml-1.5 h-4 w-4" />}
-        </Button>
+        {locked ? (
+          <span className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+            <Lock className="h-4 w-4" /> Locked
+          </span>
+        ) : (
+          <Button size="lg" onClick={moveOnClick}>
+            {moveAction}
+            {ready && !isLastUnit && <ArrowRight className="ml-1.5 h-4 w-4" />}
+          </Button>
+        )}
       </div>
 
       {/* Three steps */}
@@ -293,15 +313,25 @@ const UnitDetailPanel = ({
           index={1}
           icon={BookOpen}
           title="Study"
-          state={studied ? "done" : stage === "not_started" ? "active" : "todo"}
+          state={locked ? "locked" : studied ? "done" : stage === "not_started" ? "active" : "todo"}
           status={studied ? "Done — worked through with the tutor." : "Learn this unit's concepts with your tutor."}
-          onClick={onStudy}
+          onClick={locked ? undefined : onStudy}
         />
         <StepCard
           index={2}
           icon={practiceViaTerminal ? Terminal : PenLine}
           title="Practice"
-          state={practised ? (ready ? "done" : "active") : stage === "studied" || stage === "needs_work" ? "active" : "todo"}
+          state={
+            locked
+              ? "locked"
+              : practised
+                ? ready
+                  ? "done"
+                  : "active"
+                : stage === "studied" || stage === "needs_work"
+                  ? "active"
+                  : "todo"
+          }
           status={
             practised
               ? ready
@@ -311,27 +341,29 @@ const UnitDetailPanel = ({
                 ? "Practise hands-on in the code terminal."
                 : "Answer scored practice questions."
           }
-          onClick={onPractice}
+          onClick={locked ? undefined : onPractice}
         />
         {isCodingWeek ? (
           <StepCard
             index={3}
             icon={Code2}
             title="Coding Exercises"
-            state={exercises.length > 0 && exercisesDone >= exercises.length ? "done" : "todo"}
+            state={
+              locked ? "locked" : exercises.length > 0 && exercisesDone >= exercises.length ? "done" : "todo"
+            }
             status={
               exercises.length === 0
                 ? "No exercises published yet."
                 : `${exercisesDone} of ${exercises.length} done — tap to see them.`
             }
-            onClick={exercises.length > 0 ? () => setShowExercises((v) => !v) : undefined}
+            onClick={locked || exercises.length === 0 ? undefined : () => setShowExercises((v) => !v)}
           />
         ) : (
           <StepCard
             index={3}
             icon={ClipboardCheck}
-            title="Weekly Quiz"
-            state={quizStepState}
+            title="Unit Quiz"
+            state={locked ? "locked" : quizStepState}
             status={
               quizTaken
                 ? `Scored ${typeof quizScore === "number" ? `${quizScore}%` : "—"}. One attempt only — locked.`
@@ -343,7 +375,7 @@ const UnitDetailPanel = ({
                       : "One scored attempt."
                     : "Not published for this unit yet."
             }
-            onClick={quizTaken || quizLocked || !quizAvailable ? undefined : onTakeQuiz}
+            onClick={locked || quizTaken || quizLocked || !quizAvailable ? undefined : onTakeQuiz}
           />
         )}
       </div>
@@ -387,8 +419,8 @@ const UnitDetailPanel = ({
                     <button
                       key={c.name}
                       type="button"
-                      onClick={() => onStudyConcept?.(c.name, isWeak)}
-                      disabled={!onStudyConcept}
+                      onClick={() => !locked && onStudyConcept?.(c.name, isWeak)}
+                      disabled={locked || !onStudyConcept}
                       className="flex items-center gap-2.5 rounded-lg border bg-card p-2.5 text-left transition-colors hover:bg-muted/40 disabled:cursor-default"
                     >
                       <span

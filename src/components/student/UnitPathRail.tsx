@@ -23,6 +23,9 @@ interface TrackGeometry {
   fill: number;
 }
 
+/** Width a single unit node needs to show its two-line label comfortably. */
+const UNIT_SLOT_PX = 128;
+
 const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelect }: UnitPathRailProps) => {
   const [expanded, setExpanded] = useState<RailPillId[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -31,8 +34,23 @@ const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelec
   const itemRefs = useRef<(HTMLElement | null)[]>([]);
   const [showFade, setShowFade] = useState(false);
   const [track, setTrack] = useState<TrackGeometry | null>(null);
+  // Every unit on one line without scrolling? Then spread them out and drop
+  // the collapsed pills and the "expand a group, then scroll" hint.
+  const [fitsOnOneLine, setFitsOnOneLine] = useState(false);
 
-  const items = buildRail({ days, currentDay, expanded });
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const measureFit = () => setFitsOnOneLine(el.clientWidth >= days.length * UNIT_SLOT_PX);
+    measureFit();
+    const ro = new ResizeObserver(measureFit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [days.length]);
+
+  const items: ReturnType<typeof buildRail> = fitsOnOneLine
+    ? days.map((day, index) => ({ kind: "unit", day, index }))
+    : buildRail({ days, currentDay, expanded });
   const currentIndex = days.indexOf(currentDay);
   itemRefs.current.length = items.length;
 
@@ -112,12 +130,22 @@ const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelec
       </div>
 
       <p className="mb-3 text-xs text-muted-foreground">
-        All {days.length} units on one line · tap a group to expand it in place, then scroll →
+        {fitsOnOneLine
+          ? `All ${days.length} units · tap a unit to open it`
+          : `All ${days.length} units on one line · tap a group to expand it in place, then scroll →`}
       </p>
 
       <div className="relative">
-        <div ref={scrollRef} className="overflow-x-auto pb-2 [scrollbar-width:thin]">
-          <div ref={rowRef} className="relative flex min-w-max items-start gap-6 px-1 pt-6 sm:gap-8">
+        <div
+          ref={scrollRef}
+          className={fitsOnOneLine ? "pb-2" : "overflow-x-auto pb-2 [scrollbar-width:thin]"}
+        >
+          <div
+            ref={rowRef}
+            className={`relative flex items-start px-1 pt-6 ${
+              fitsOnOneLine ? "w-full justify-between gap-4" : "min-w-max gap-6 sm:gap-8"
+            }`}
+          >
             {/* One continuous track behind the nodes. */}
             {track && (
               <>
@@ -169,13 +197,15 @@ const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelec
               const isDone = doneDays.has(item.day);
               const isCurrent = item.day === currentDay;
               const isSelected = item.day === selectedDay;
-              const far = item.index > currentIndex + 2;
+              const far = !fitsOnOneLine && item.index > currentIndex + 2;
 
               return (
                 <div
                   key={item.day}
                   ref={isCurrent ? currentRef : undefined}
-                  className={`relative z-10 flex w-20 shrink-0 flex-col items-center ${far ? "opacity-50" : ""}`}
+                  className={`relative z-10 flex shrink-0 flex-col items-center ${
+                    fitsOnOneLine ? "w-28" : "w-20"
+                  } ${far ? "opacity-50" : ""}`}
                 >
                   <span
                     className={`mb-1 h-5 text-[10px] font-semibold text-primary ${isCurrent ? "" : "invisible"}`}
