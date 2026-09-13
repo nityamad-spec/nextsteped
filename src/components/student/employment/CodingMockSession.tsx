@@ -213,7 +213,7 @@ const CodingMockSession = ({ config, onExit }: Props) => {
         />
       )}
       {stage === "review" && (
-        <ReviewScreen
+        <MockReviewScreen
           config={config}
           elapsed={elapsedAtEnd}
           checkedCount={checkedAtEnd}
