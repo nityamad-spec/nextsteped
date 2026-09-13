@@ -308,9 +308,9 @@ const WeeklyQuizDialog = ({
           }}
         >
           <DialogHeader className="sr-only">
-            <DialogTitle>Weekly Quiz{day ? ` — Week ${day}` : ""}</DialogTitle>
+            <DialogTitle>Unit Quiz{day ? ` — Unit ${day}` : ""}</DialogTitle>
             <DialogDescription>
-              Optional weekly quiz to check your understanding of recent concepts.
+              Optional unit quiz to check your understanding of recent concepts.
             </DialogDescription>
           </DialogHeader>
           <div className="flex-1 overflow-auto">

@@ -360,7 +360,7 @@ const StudentLearningPath = () => {
 
   const attemptOpenQuiz = (day: number) => {
     if (diagnosticTaken === false) {
-      setDiagGate({ open: true, context: "Weekly quizzes unlock once you've completed the diagnostic." });
+      setDiagGate({ open: true, context: "Unit quizzes unlock once you've completed the diagnostic." });
       return;
     }
     setQuizDialog({ open: true, day });

@@ -177,7 +177,7 @@ const UnitDetailPanel = ({
   let moveTitle = "Start studying";
   let moveBody = isCodingWeek
     ? "Work through this unit with your tutor, then practise it hands-on in the code terminal."
-    : "Work through this unit with your tutor, practise a few questions, then take the weekly quiz.";
+    : "Work through this unit with your tutor, practise a few questions, then take the unit quiz.";
   let moveAction = "Start studying";
   let moveOnClick = onStudy;
 
@@ -330,7 +330,7 @@ const UnitDetailPanel = ({
           <StepCard
             index={3}
             icon={ClipboardCheck}
-            title="Weekly Quiz"
+            title="Unit Quiz"
             state={quizStepState}
             status={
               quizTaken

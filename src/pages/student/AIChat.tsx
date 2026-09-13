@@ -909,7 +909,7 @@ const AIChat = () => {
       ]);
 
       const summary = [
-        assessmentType === "quiz" ? "✅ **Weekly Quiz Complete!**" : "✅ **Exam Practice Complete!**",
+        assessmentType === "quiz" ? "✅ **Unit Quiz Complete!**" : "✅ **Exam Practice Complete!**",
         "",
         `Score: **${results.score}%** (${results.correctAnswers}/${results.totalQuestions}) · Time: **${Math.floor(results.timeSpent / 60)}m ${results.timeSpent % 60}s**`,
         weakConcepts.length > 0 ? `Concepts to strengthen in Study mode: **${weakConcepts.join(", ")}**` : "Strong work across this attempt.",
@@ -1532,7 +1532,7 @@ const AIChat = () => {
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
                 <AlertTriangle className="h-5 w-5 text-destructive" />
-                End {assessmentType === "exam" ? "Exam" : "Weekly Quiz"}?
+                End {assessmentType === "exam" ? "Exam" : "Unit Quiz"}?
               </DialogTitle>
               <DialogDescription>
                 If you leave, your progress will be discarded and not submitted.
