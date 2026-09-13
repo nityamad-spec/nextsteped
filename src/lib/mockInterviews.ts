@@ -30,6 +30,8 @@ export interface RecentMock {
   note: string;
   score: number;
   when: string;
+  icon: MockInterviewIcon;
+  accent: MockInterviewAccent;
 }
 
 /** Target mocks per interview type. */
@@ -99,6 +101,8 @@ export const RECENT_MOCKS: RecentMock[] = [
     note: "Cleaner brute force before optimizing",
     score: 8,
     when: "3 days ago",
+    icon: "code",
+    accent: "blue",
   },
   {
     id: "r2",
@@ -106,6 +110,8 @@ export const RECENT_MOCKS: RecentMock[] = [
     note: "Missed monitoring + eval discussion",
     score: 6,
     when: "1 week ago",
+    icon: "network",
+    accent: "purple",
   },
   {
     id: "r3",
@@ -113,5 +119,7 @@ export const RECENT_MOCKS: RecentMock[] = [
     note: "STAR structure got sloppy in story 2",
     score: 7,
     when: "2 weeks ago",
+    icon: "star",
+    accent: "green",
   },
 ];
