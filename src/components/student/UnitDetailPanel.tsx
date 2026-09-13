@@ -313,15 +313,25 @@ const UnitDetailPanel = ({
           index={1}
           icon={BookOpen}
           title="Study"
-          state={studied ? "done" : stage === "not_started" ? "active" : "todo"}
+          state={locked ? "locked" : studied ? "done" : stage === "not_started" ? "active" : "todo"}
           status={studied ? "Done — worked through with the tutor." : "Learn this unit's concepts with your tutor."}
-          onClick={onStudy}
+          onClick={locked ? undefined : onStudy}
         />
         <StepCard
           index={2}
           icon={practiceViaTerminal ? Terminal : PenLine}
           title="Practice"
-          state={practised ? (ready ? "done" : "active") : stage === "studied" || stage === "needs_work" ? "active" : "todo"}
+          state={
+            locked
+              ? "locked"
+              : practised
+                ? ready
+                  ? "done"
+                  : "active"
+                : stage === "studied" || stage === "needs_work"
+                  ? "active"
+                  : "todo"
+          }
           status={
             practised
               ? ready
@@ -331,27 +341,29 @@ const UnitDetailPanel = ({
                 ? "Practise hands-on in the code terminal."
                 : "Answer scored practice questions."
           }
-          onClick={onPractice}
+          onClick={locked ? undefined : onPractice}
         />
         {isCodingWeek ? (
           <StepCard
             index={3}
             icon={Code2}
             title="Coding Exercises"
-            state={exercises.length > 0 && exercisesDone >= exercises.length ? "done" : "todo"}
+            state={
+              locked ? "locked" : exercises.length > 0 && exercisesDone >= exercises.length ? "done" : "todo"
+            }
             status={
               exercises.length === 0
                 ? "No exercises published yet."
                 : `${exercisesDone} of ${exercises.length} done — tap to see them.`
             }
-            onClick={exercises.length > 0 ? () => setShowExercises((v) => !v) : undefined}
+            onClick={locked || exercises.length === 0 ? undefined : () => setShowExercises((v) => !v)}
           />
         ) : (
           <StepCard
             index={3}
             icon={ClipboardCheck}
             title="Unit Quiz"
-            state={quizStepState}
+            state={locked ? "locked" : quizStepState}
             status={
               quizTaken
                 ? `Scored ${typeof quizScore === "number" ? `${quizScore}%` : "—"}. One attempt only — locked.`
@@ -363,7 +375,7 @@ const UnitDetailPanel = ({
                       : "One scored attempt."
                     : "Not published for this unit yet."
             }
-            onClick={quizTaken || quizLocked || !quizAvailable ? undefined : onTakeQuiz}
+            onClick={locked || quizTaken || quizLocked || !quizAvailable ? undefined : onTakeQuiz}
           />
         )}
       </div>
