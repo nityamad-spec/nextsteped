@@ -1,26 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, ChevronRight, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import MockReadyScreen from "./MockReadyScreen";
 import { cn } from "@/lib/utils";
-import {
-  CODING_COACH_CHECKLIST,
-  CODING_MOCK_MINUTES,
-  CODING_MOCK_TITLE,
-  CODING_PROMPT,
-  CODING_REVIEW_NOTES,
-  formatElapsedTime,
-} from "@/lib/codingMock";
+import { formatElapsedTime, type MockConfig } from "@/lib/codingMock";
 
 interface Props {
+  config: MockConfig;
   onExit: () => void;
 }
 
 type Stage = "ready" | "live" | "review";
-
-const TOTAL_SECONDS = CODING_MOCK_MINUTES * 60;
 
 /** Circular progress ring used for the live timer. */
 function TimerRing({ elapsed }: { elapsed: number }) {
