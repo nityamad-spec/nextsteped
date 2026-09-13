@@ -26,12 +26,17 @@ export interface MockInterviewType {
 
 export interface RecentMock {
   id: string;
+  /** Interview-type id this session used, e.g. "coding". */
+  typeId: string;
   type: string;
   note: string;
   score: number;
   when: string;
   icon: MockInterviewIcon;
   accent: MockInterviewAccent;
+  /** Demo-only session stats shown on the review page. */
+  elapsedSeconds: number;
+  habitsHit: number;
 }
 
 /** Target mocks per interview type. */
