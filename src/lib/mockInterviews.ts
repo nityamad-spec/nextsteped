@@ -10,12 +10,18 @@ export type MockInterviewIcon =
   | "star"
   | "sparkles";
 
+/** Per-type accent colour so each interview type reads as distinct. */
+export type MockInterviewAccent = "blue" | "purple" | "orange" | "green" | "pink";
+
 export interface MockInterviewType {
   id: string;
   title: string;
   minutes: number;
   description: string;
   icon: MockInterviewIcon;
+  accent: MockInterviewAccent;
+  /** Demo-only count of completed mocks for this interview type. */
+  completed: number;
 }
 
 export interface RecentMock {
