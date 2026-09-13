@@ -12,7 +12,7 @@ import CareerReadinessStepper from "./CareerReadinessStepper";
 import UnderstandBriefing from "./UnderstandBriefing";
 import StarStoryBuilder from "./StarStoryBuilder";
 import MockInterviewLab from "./MockInterviewLab";
-import { DEMO_STAR_STORIES, isStudentCreatedStory, type StarStory } from "@/lib/starStories";
+import { DEMO_STAR_STORIES, type StarStory } from "@/lib/starStories";
 
 interface Props {
   modules: SoftSkillsModuleView[];
@@ -41,12 +41,8 @@ const CareerReadinessSteps = ({ modules, onStudy, targetRole, initialStep }: Pro
   const firstWithContent =
     CAREER_READINESS_STEPS.find((s) => byStep[s.key].length > 0)?.key ?? "understand";
   const [stories, setStories] = useState<StarStory[]>(DEMO_STAR_STORIES);
-  const studentStoryCount = stories.filter(isStudentCreatedStory).length;
-  const practiceUnlocked = studentStoryCount >= 5;
   const requestedInitial = initialStep && isCareerReadinessStep(initialStep) ? initialStep : firstWithContent;
-  const [active, setActive] = useState<CareerReadinessStep>(
-    requestedInitial === "practice" ? "prepare" : requestedInitial
-  );
+  const [active, setActive] = useState<CareerReadinessStep>(requestedInitial);
   const [openModule, setOpenModule] = useState<string | null>(null);
 
   const activeModules = byStep[active];
@@ -55,9 +51,7 @@ const CareerReadinessSteps = ({ modules, onStudy, targetRole, initialStep }: Pro
     <div className="space-y-4">
       <CareerReadinessStepper
         active={active}
-        practiceLocked={!practiceUnlocked}
         onSelect={(step) => {
-          if (step === "practice" && !practiceUnlocked) return;
           setActive(step);
           setOpenModule(null);
         }}
@@ -77,7 +71,6 @@ const CareerReadinessSteps = ({ modules, onStudy, targetRole, initialStep }: Pro
           stories={stories}
           onStoriesChange={setStories}
           onGoToPractice={() => {
-            if (!practiceUnlocked) return;
             setActive("practice");
             setOpenModule(null);
           }}
