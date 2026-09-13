@@ -164,7 +164,7 @@ function LiveScreen({ onEnd, onAbort }: { onEnd: (elapsed: number, checkedCount:
           <CardContent className="flex flex-col items-center justify-center space-y-4 p-6">
             <TimerRing elapsed={elapsed} />
             <div className="flex flex-wrap items-center justify-center gap-3">
-              <Button onClick={onEnd}>
+              <Button onClick={() => onEnd(elapsed, checked.size)}>
                 <Check className="h-4 w-4" />
                 End & review
               </Button>
