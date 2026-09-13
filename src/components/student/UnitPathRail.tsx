@@ -11,6 +11,8 @@ export interface UnitPathRailProps {
   doneDays: ReadonlySet<number>;
   /** The unit the course clock says the student is on. */
   currentDay: number;
+  /** Units the student cannot act on yet — shown muted. */
+  lockedDays?: ReadonlySet<number>;
   /** The unit whose detail panel is open. */
   selectedDay: number;
   onSelect: (day: number) => void;
@@ -26,7 +28,15 @@ interface TrackGeometry {
 /** Width a single unit node needs to show its two-line label comfortably. */
 const UNIT_SLOT_PX = 128;
 
-const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelect }: UnitPathRailProps) => {
+const UnitPathRail = ({
+  days,
+  labels,
+  doneDays,
+  currentDay,
+  lockedDays,
+  selectedDay,
+  onSelect,
+}: UnitPathRailProps) => {
   const [expanded, setExpanded] = useState<RailPillId[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
