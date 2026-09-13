@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import MockReadyScreen from "./MockReadyScreen";
+import MockReviewScreen from "./MockReviewScreen";
 import { cn } from "@/lib/utils";
 import { formatElapsedTime, type MockConfig } from "@/lib/codingMock";
 
