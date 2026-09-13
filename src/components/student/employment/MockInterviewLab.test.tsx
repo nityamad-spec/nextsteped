@@ -4,20 +4,17 @@ import MockInterviewLab from "./MockInterviewLab";
 
 afterEach(cleanup);
 
-describe("MockInterviewLab ready screens", () => {
-  const readyOnlyMockTypes = [
-    { title: "Behavioural", label: "Behavioural mock · 30 min" },
-    { title: "Agent Design", label: "Agent Design mock · 60 min" },
-  ];
-
-  it.each(readyOnlyMockTypes)("opens the tailored $title ready screen", ({ title, label }) => {
+describe("MockInterviewLab overview", () => {
+  it("shows the total completed count out of 40 and per-type progress", () => {
     render(<MockInterviewLab />);
 
-    fireEvent.click(screen.getByRole("button", { name: new RegExp(title, "i") }));
-
-    expect(screen.getByText(label)).toBeInTheDocument();
-    expect(screen.getByRole("heading", { name: "Ready?" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Start timer" })).toBeDisabled();
+    expect(screen.getByText("Total completed")).toBeInTheDocument();
+    expect(screen.getByText("/40")).toBeInTheDocument();
+    expect(screen.getAllByText("1/8").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("0/8").length).toBeGreaterThan(0);
+    expect(
+      screen.getByText(/Aim for 8–10 mocks on each interview type before onsites/i)
+    ).toBeInTheDocument();
   });
 
   it("returns to the mock lab from a ready screen", () => {
@@ -26,6 +23,42 @@ describe("MockInterviewLab ready screens", () => {
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
 
     expect(screen.getByText("Mock interview lab")).toBeInTheDocument();
+  });
+});
+
+describe("MockInterviewLab behavioural session", () => {
+  it("starts the live behavioural screen with tailored prompt and checklist", () => {
+    render(<MockInterviewLab />);
+    fireEvent.click(screen.getByRole("button", { name: /Behavioural/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
+
+    expect(screen.getByText("Behavioural · Live")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: /Tell me about a time you disagreed with a teammate/i,
+      })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/Follow STAR strictly/i)).toBeInTheDocument();
+    expect(screen.getByText("Set the situation in two sentences or less")).toBeInTheDocument();
+    expect(screen.getByText(/of 30:00/i)).toBeInTheDocument();
+  });
+});
+
+describe("MockInterviewLab agent design session", () => {
+  it("starts the live agent design screen with tailored prompt and checklist", () => {
+    render(<MockInterviewLab />);
+    fireEvent.click(screen.getByRole("button", { name: /Agent Design/i }));
+    fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
+
+    expect(screen.getByText("Agent Design · Live")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: /Design an agent that books flights end-to-end/i,
+      })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/error recovery mid-booking/i)).toBeInTheDocument();
+    expect(screen.getByText("Outline the planning loop and when it stops")).toBeInTheDocument();
+    expect(screen.getByText(/of 60:00/i)).toBeInTheDocument();
   });
 });
 
