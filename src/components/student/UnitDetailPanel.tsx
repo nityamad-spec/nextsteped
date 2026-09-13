@@ -419,8 +419,8 @@ const UnitDetailPanel = ({
                     <button
                       key={c.name}
                       type="button"
-                      onClick={() => onStudyConcept?.(c.name, isWeak)}
-                      disabled={!onStudyConcept}
+                      onClick={() => !locked && onStudyConcept?.(c.name, isWeak)}
+                      disabled={locked || !onStudyConcept}
                       className="flex items-center gap-2.5 rounded-lg border bg-card p-2.5 text-left transition-colors hover:bg-muted/40 disabled:cursor-default"
                     >
                       <span
