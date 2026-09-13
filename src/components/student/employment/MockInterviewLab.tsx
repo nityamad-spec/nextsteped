@@ -158,25 +158,28 @@ const MockInterviewLab = () => {
             Recent mocks
           </p>
           <div className="space-y-2">
-            {RECENT_MOCKS.map((r) => (
-              <div
-                key={r.id}
-                className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-[#DFE3FB] bg-background p-3"
-              >
-                <div className="flex min-w-0 items-start gap-3">
-                  <div className="flex h-7 w-7 flex-none items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
-                    {r.type.charAt(0)}
+            {RECENT_MOCKS.map((r) => {
+              const Icon = ICONS[r.icon];
+              return (
+                <div
+                  key={r.id}
+                  className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-[#DFE3FB] bg-background p-3"
+                >
+                  <div className="flex min-w-0 items-start gap-3">
+                    <Icon
+                      className={`mt-0.5 h-4.5 w-4.5 flex-none ${ACCENT_TEXT[r.accent]}`}
+                    />
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold">{r.type}</p>
+                      <p className="text-xs text-muted-foreground">{r.note}</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-sm font-semibold">{r.type}</p>
-                    <p className="text-xs text-muted-foreground">{r.note}</p>
+                  <div className="flex-none text-right">
+                    <p className="text-xs text-muted-foreground">{r.when}</p>
                   </div>
                 </div>
-                <div className="flex-none text-right">
-                  <p className="text-xs text-muted-foreground">{r.when}</p>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </CardContent>
       </Card>
