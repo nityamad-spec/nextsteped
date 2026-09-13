@@ -106,7 +106,7 @@ function ReadyScreen({ onStart }: { onStart: () => void }) {
 }
 
 /** Live screen with prompt, timer, and coach checklist. */
-function LiveScreen({ onEnd, onAbort }: { onEnd: () => void; onAbort: () => void }) {
+function LiveScreen({ onEnd, onAbort }: { onEnd: (elapsed: number, checkedCount: number) => void; onAbort: () => void }) {
   const [elapsed, setElapsed] = useState(0);
   const [checked, setChecked] = useState<Set<string>>(new Set());
 
