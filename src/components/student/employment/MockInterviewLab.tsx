@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Brain, Code2, Network, Sparkles, Star } from "lucide-react";
+import { Brain, ChevronRight, Code2, Network, Sparkles, Star } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   MOCK_INTERVIEW_TYPES,
@@ -15,10 +15,12 @@ import {
   BEHAVIOURAL_MOCK_CONFIG,
   CODING_MOCK_CONFIG,
   ML_DEPTH_MOCK_CONFIG,
+  MOCK_CONFIG_BY_ID,
   SYSTEM_DESIGN_MOCK_CONFIG,
 } from "@/lib/codingMock";
 import CodingMockSession from "./CodingMockSession";
 import MockReadyScreen from "./MockReadyScreen";
+import MockReviewScreen from "./MockReviewScreen";
 
 const ICONS: Record<MockInterviewIcon, typeof Code2> = {
   code: Code2,
