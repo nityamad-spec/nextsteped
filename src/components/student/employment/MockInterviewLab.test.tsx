@@ -22,10 +22,29 @@ describe("MockInterviewLab ready screens", () => {
 
   it("returns to the mock lab from a ready screen", () => {
     render(<MockInterviewLab />);
-    fireEvent.click(screen.getByRole("button", { name: /ML Depth/i }));
+    fireEvent.click(screen.getByRole("button", { name: /Behavioural/i }));
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
 
     expect(screen.getByText("Mock interview lab")).toBeInTheDocument();
+  });
+});
+
+describe("MockInterviewLab ML depth session", () => {
+  it("starts the live ML depth screen with tailored prompt and checklist", () => {
+    render(<MockInterviewLab />);
+    fireEvent.click(screen.getByRole("button", { name: /ML Depth/i }));
+    expect(screen.getByText("ML Depth mock · 45 min")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
+
+    expect(screen.getByText("ML Depth · Live")).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", {
+        name: /Design a fraud detection system for a payments company/i,
+      })
+    ).toBeInTheDocument();
+    expect(screen.getByText(/class imbalance, serving latency, drift monitoring/i)).toBeInTheDocument();
+    expect(screen.getByText("Define the prediction target and label strategy")).toBeInTheDocument();
+    expect(screen.getByText(/of 45:00/i)).toBeInTheDocument();
   });
 });
 
