@@ -512,11 +512,6 @@ const StudentLearningPath = () => {
       })
     : null;
 
-  // "You're here" line: the unit the student can act on right now, plus the
-  // stage it belongs to on employment courses.
-  const hereUnit = lessonPlan.find((w) => w.day === activeUnit) ?? null;
-  const hereStage = pathway?.stages.find((s) => hereUnit && s.days.includes(hereUnit.day)) ?? null;
-  const hereMastery = hereUnit ? (readinessByUnit[hereUnit.day] ?? 0) : 0;
 
   return (
     <div className="p-6">
