@@ -47,6 +47,47 @@ export const CODING_REVIEW_NOTES: DemoReviewNote[] = [
   { text: "Walk through a concrete example before writing code next time." },
 ];
 
+/** Everything a full mock session needs — prompt, timer length, checklist, review notes. */
+export interface MockConfig {
+  /** Short label used in eyebrows, e.g. "Coding mock", "System design mock". */
+  title: string;
+  minutes: number;
+  prompt: { question: string; followUp: string };
+  checklist: CoachItem[];
+  reviewNotes: DemoReviewNote[];
+}
+
+export const CODING_MOCK_CONFIG: MockConfig = {
+  title: CODING_MOCK_TITLE,
+  minutes: CODING_MOCK_MINUTES,
+  prompt: CODING_PROMPT,
+  checklist: CODING_COACH_CHECKLIST,
+  reviewNotes: CODING_REVIEW_NOTES,
+};
+
+export const SYSTEM_DESIGN_MOCK_CONFIG: MockConfig = {
+  title: "System design mock",
+  minutes: 60,
+  prompt: {
+    question: "Design Swiggy's real-time delivery ETA system.",
+    followUp:
+      "Cover: data model, real-time ingestion, ETA prediction, monitoring, staleness, A/B testing.",
+  },
+  checklist: [
+    { id: "requirements", label: "Clarify requirements and scope" },
+    { id: "scale", label: "Estimate scale (QPS, storage, users)" },
+    { id: "data-model", label: "Define the data model" },
+    { id: "bottlenecks", label: "Identify bottlenecks and single points of failure" },
+    { id: "tradeoffs", label: "Discuss trade-offs explicitly" },
+    { id: "monitoring", label: "Cover monitoring and alerting" },
+  ],
+  reviewNotes: [
+    { text: "You scoped the problem well and stated assumptions before designing." },
+    { text: "Spend more time on scale estimates next time — interviewers anchor on your numbers." },
+    { text: "Call out staleness and failure handling earlier; it signals production experience." },
+  ],
+};
+
 export function formatElapsedTime(seconds: number): string {
   const clamped = Math.max(0, seconds);
   const m = Math.floor(clamped / 60);
