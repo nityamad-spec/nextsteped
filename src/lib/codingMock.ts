@@ -111,6 +111,51 @@ export const ML_DEPTH_MOCK_CONFIG: MockConfig = {
   ],
 };
 
+export const BEHAVIOURAL_MOCK_CONFIG: MockConfig = {
+  title: "Behavioural mock",
+  minutes: 30,
+  prompt: {
+    question: "Tell me about a time you disagreed with a teammate and how you resolved it.",
+    followUp: "Follow STAR strictly. Concrete numbers. Own your part. What did you learn?",
+  },
+  checklist: [
+    { id: "situation", label: "Set the situation in two sentences or less" },
+    { id: "task", label: "State your specific task and ownership" },
+    { id: "action", label: "Describe the actions you personally took" },
+    { id: "result", label: "Quantify the result with concrete numbers" },
+    { id: "learning", label: "Say what you learned and changed after" },
+    { id: "length", label: "Keep it under three minutes" },
+  ],
+  reviewNotes: [
+    { text: "Your STAR structure held up — situation and task were crisp and short." },
+    { text: "Own your part more directly; say 'I' rather than 'we' when describing your actions." },
+    { text: "Close with a quantified outcome and one concrete thing you changed afterwards." },
+  ],
+};
+
+export const AGENT_DESIGN_MOCK_CONFIG: MockConfig = {
+  title: "Agent Design mock",
+  minutes: 60,
+  prompt: {
+    question: "Design an agent that books flights end-to-end from a natural-language request.",
+    followUp:
+      "Planning, tool schemas, error recovery mid-booking, memory of preferences, safety.",
+  },
+  checklist: [
+    { id: "scope", label: "Clarify the task scope and success criteria" },
+    { id: "planning", label: "Outline the planning loop and when it stops" },
+    { id: "tools", label: "Define tool schemas and their inputs/outputs" },
+    { id: "recovery", label: "Handle errors and recovery mid-booking" },
+    { id: "memory", label: "Explain memory of user preferences" },
+    { id: "safety", label: "Cover safety, guardrails, and human handoff" },
+  ],
+  reviewNotes: [
+    { text: "Your planning loop was clear — you said explicitly when the agent stops and hands back." },
+    { text: "Be more precise about tool schemas: exact inputs, outputs, and failure modes." },
+    { text: "Spend longer on recovery mid-booking and safety guardrails; that is where agents break." },
+  ],
+};
+
 export function formatElapsedTime(seconds: number): string {
   const clamped = Math.max(0, seconds);
   const m = Math.floor(clamped / 60);
