@@ -49,8 +49,8 @@
     --openings-band: 214 80% 96%;
     --openings-band-foreground: 214 40% 25%;
 
-    --common-prompts: 200 100% 97%;
-    --common-prompts-border: 200 92% 85%;
+    --common-prompts: 226 100% 97%;
+    --common-prompts-border: 230 94% 88%;
 
     --career-rounds-surface: 234 65% 97%;
     --career-round-1: 234 80% 96%;
@@ -108,6 +108,9 @@
 
     --openings-band: 214 35% 14%;
     --openings-band-foreground: 214 20% 85%;
+
+    --common-prompts: 230 24% 15%;
+    --common-prompts-border: 230 32% 28%;
 
     --career-rounds-surface: 234 24% 13%;
     --career-round-1: 234 22% 17%;

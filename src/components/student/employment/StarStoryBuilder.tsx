@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Sparkles, Loader2 } from "lucide-react";
+import { ArrowRight, Lock, Sparkles, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -16,7 +16,7 @@ import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import {
   COMMON_PROMPTS,
-  DEMO_STAR_STORIES,
+  isStudentCreatedStory,
   MOST_TESTED_THEMES,
   STAR_TARGET_STORIES,
   STAR_THEMES,
@@ -25,6 +25,9 @@ import {
 
 interface Props {
   targetRole?: string | null;
+  stories: StarStory[];
+  onStoriesChange: (stories: StarStory[]) => void;
+  onGoToPractice: () => void;
 }
 
 const emptyStory = (): StarStory => ({
@@ -56,11 +59,12 @@ const PLACEHOLDERS: Record<string, string> = {
  * Career Readiness "Prepare" step: a STAR story builder.
  * Demo content only — stories live in page state and reset on refresh.
  */
-const StarStoryBuilder = ({ targetRole }: Props) => {
-  const [stories, setStories] = useState<StarStory[]>(DEMO_STAR_STORIES);
+const StarStoryBuilder = ({ targetRole, stories, onStoriesChange, onGoToPractice }: Props) => {
   const [draft, setDraft] = useState<StarStory | null>(null);
   const [reviewing, setReviewing] = useState<StarStory | null>(null);
   const [improving, setImproving] = useState(false);
+  const studentStoryCount = stories.filter(isStudentCreatedStory).length;
+  const practiceUnlocked = studentStoryCount >= 5;
 
   
   const coverageSlots = Array.from({ length: STAR_TARGET_STORIES });
@@ -81,14 +85,16 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
   const saveDraft = () => {
     if (!draft) return;
     const title = draft.title.trim() || "Untitled story";
-    setStories((prev) => {
+    const nextStories = (() => {
+      const prev = stories;
       const next = { ...draft, title };
       const i = prev.findIndex((s) => s.id === draft.id);
       if (i === -1) return [next, ...prev];
       const copy = [...prev];
       copy[i] = next;
       return copy;
-    });
+    })();
+    onStoriesChange(nextStories);
     setDraft(null);
   };
 
@@ -140,8 +146,7 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="text-xs font-semibold uppercase tracking-wider text-black dark:text-white">
-            Step 2 · Prepare — STAR story builder · {stories.length}/
-            {STAR_TARGET_STORIES}
+            Step 2 · Prepare — STAR story builder
           </p>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
             Prepare 10–12 crisp STAR stories. Each under 2 minutes with concrete
@@ -201,7 +206,7 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
           </div>
           <div className="border-t pt-3">
             <p className="text-xs font-semibold tracking-wider text-primary">
-              themes most-tested for freshers
+              Themes most-tested for freshers:
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {MOST_TESTED_THEMES.map((t) => (
@@ -225,6 +230,30 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
               <p className="mt-0.5 text-xs text-muted-foreground">{p.guidance}</p>
             </div>
           ))}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold">
+              {practiceUnlocked ? "You're ready to practice" : "Complete five STAR stories to unlock Practice"}
+            </p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {studentStoryCount}/5 student-created stories saved in this session.
+            </p>
+          </div>
+          <Button onClick={onGoToPractice} disabled={!practiceUnlocked} className="flex-none">
+            {practiceUnlocked ? (
+              <>
+                Go to Practice <ArrowRight className="ml-2 h-4 w-4" />
+              </>
+            ) : (
+              <>
+                <Lock className="mr-2 h-4 w-4" /> Practice locked
+              </>
+            )}
+          </Button>
         </CardContent>
       </Card>
 
