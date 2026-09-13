@@ -539,28 +539,6 @@ const StudentLearningPath = () => {
         </motion.div>
       )}
 
-      {hereUnit && (
-        <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="mb-5">
-          <Card className="border-primary/30 bg-primary/5">
-            <CardContent className="flex flex-wrap items-center gap-4 p-5">
-              <span className="flex h-10 w-10 flex-none items-center justify-center rounded-xl bg-primary text-base font-bold text-primary-foreground">
-                {hereUnit.day}
-              </span>
-              <div className="min-w-0 flex-1">
-                <p className="text-xs font-semibold uppercase tracking-wide text-primary">You're here</p>
-                <p className="mt-0.5 font-heading text-base font-bold">
-                  {hereStage ? hereStage.title + " · " : ""}
-                  Unit {hereUnit.day} — {hereUnit.topic}
-                </p>
-                <p className="mt-0.5 text-sm text-muted-foreground">
-                  {hereMastery}% mastery · goal {READINESS_THRESHOLD}%. Later units open once this one hits the goal.
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        </motion.div>
-      )}
-
       <motion.div
         initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
