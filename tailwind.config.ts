@@ -68,6 +68,10 @@ export default {
           DEFAULT: "hsl(var(--openings-band))",
           foreground: "hsl(var(--openings-band-foreground))",
         },
+        "common-prompts": {
+          DEFAULT: "hsl(var(--common-prompts))",
+          border: "hsl(var(--common-prompts-border))",
+        },
         "career-rounds-surface": "hsl(var(--career-rounds-surface))",
         "career-round-1": {
           DEFAULT: "hsl(var(--career-round-1))",

@@ -183,7 +183,7 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold">{s.title}</p>
                   <div className="mt-1 flex flex-wrap gap-1">
-                    {s.themes.slice(0, 2).map((t) => (
+                    {s.themes.map((t) => (
                       <span
                         key={t}
                         className="rounded-md border border-primary/40 bg-primary/10 px-1.5 py-0.5 text-[11px] font-semibold text-primary"
@@ -191,11 +191,6 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
                         {t}
                       </span>
                     ))}
-                    {s.themes.length > 2 && (
-                      <span className="px-0.5 text-[11px] text-muted-foreground">
-                        +{s.themes.length - 2}
-                      </span>
-                    )}
                   </div>
                 </div>
                 <span className="flex-none text-xs text-muted-foreground">
@@ -205,14 +200,14 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
             ))}
           </div>
           <div className="border-t pt-3">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Themes most-tested for freshers
+            <p className="text-xs font-semibold tracking-wider text-primary">
+              themes most-tested for freshers
             </p>
             <div className="mt-2 flex flex-wrap gap-2">
               {MOST_TESTED_THEMES.map((t) => (
                 <span
                   key={t}
-                  className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-xs font-semibold text-primary"
+                  className="rounded-md border border-primary/40 bg-white px-2 py-0.5 text-xs font-semibold text-primary"
                 >
                   {t}
                 </span>
@@ -221,11 +216,11 @@ const StarStoryBuilder = ({ targetRole }: Props) => {
           </div>
         </CardContent>
       </Card>
-      <Card>
+      <Card className="bg-common-prompts">
         <CardContent className="space-y-2 p-4">
           <p className="text-sm font-semibold">Common prompts</p>
           {COMMON_PROMPTS.map((p) => (
-            <div key={p.question} className="rounded-lg border p-3">
+            <div key={p.question} className="rounded-lg border border-common-prompts-border bg-white p-3">
               <p className="text-sm font-semibold">{p.question}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">{p.guidance}</p>
             </div>
