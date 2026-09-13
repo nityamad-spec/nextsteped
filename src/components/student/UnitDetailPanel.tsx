@@ -165,6 +165,8 @@ const UnitDetailPanel = ({
   onTakeQuiz,
   onGoToNextUnit,
   practiceViaTerminal = false,
+  locked = false,
+  unlockHint,
 }: UnitDetailPanelProps) => {
   const [showExercises, setShowExercises] = useState(false);
   const stage = computeUnitStage({ studied, practised, quizTaken, readiness, quizExempt: isCodingWeek });
