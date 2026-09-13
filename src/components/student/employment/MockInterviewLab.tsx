@@ -186,6 +186,7 @@ const MockInterviewLab = () => {
                   key={r.id}
                   type="button"
                   onClick={() => setReviewMockId(r.id)}
+                  aria-label={`Review ${r.type} mock from ${r.when}`}
                   className="flex w-full flex-wrap items-start justify-between gap-3 rounded-lg border border-[#DFE3FB] bg-background p-3 text-left transition-shadow hover:shadow-md"
                 >
                   <div className="flex min-w-0 items-start gap-3">
