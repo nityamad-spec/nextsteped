@@ -139,6 +139,7 @@ const MockInterviewLab = () => {
               className="cursor-pointer transition-shadow hover:shadow-md"
               onClick={() => setActiveMock(m.id)}
               role="button"
+              aria-label={`Start ${m.title} mock`}
               tabIndex={0}
               onKeyDown={(e) => {
                 if (e.key === "Enter" || e.key === " ") {
