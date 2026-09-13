@@ -1,5 +1,6 @@
 # Roadmap
 
 - [x] Polish Prepare text and Common prompts colors
-- [x] Gate Practice until five student-created STAR stories are saved in-session
+- [x] Make Practice accessible without a STAR story lock
 - [x] Add focused tests and verify desktop/mobile behavior
+- [ ] Add tailored ready screens for System Design, ML Depth, Behavioral, and Agent Design mocks
