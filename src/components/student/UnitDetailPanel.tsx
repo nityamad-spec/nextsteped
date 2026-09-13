@@ -50,6 +50,10 @@ export interface UnitDetailPanelProps {
   onTakeQuiz: () => void;
   onGoToNextUnit?: () => void;
   practiceViaTerminal?: boolean;
+  /** Earlier units aren't at the mastery goal yet — read-only view. */
+  locked?: boolean;
+  /** Short line explaining what unlocks this unit. */
+  unlockHint?: string;
 }
 
 type StepState = "done" | "active" | "todo" | "locked";
