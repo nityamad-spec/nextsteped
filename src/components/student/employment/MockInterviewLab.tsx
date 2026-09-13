@@ -2,13 +2,17 @@ import { useState } from "react";
 import { Brain, Code2, Network, Sparkles, Star } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
-  MOCK_COMPLETED_COUNT,
   MOCK_INTERVIEW_TYPES,
-  MOCK_TARGET_COUNT,
+  MOCK_PER_TYPE_TARGET,
+  MOCK_TOTAL_COMPLETED,
+  MOCK_TOTAL_TARGET,
   RECENT_MOCKS,
+  type MockInterviewAccent,
   type MockInterviewIcon,
 } from "@/lib/mockInterviews";
 import {
+  AGENT_DESIGN_MOCK_CONFIG,
+  BEHAVIOURAL_MOCK_CONFIG,
   CODING_MOCK_CONFIG,
   ML_DEPTH_MOCK_CONFIG,
   SYSTEM_DESIGN_MOCK_CONFIG,
@@ -22,6 +26,22 @@ const ICONS: Record<MockInterviewIcon, typeof Code2> = {
   brain: Brain,
   star: Star,
   sparkles: Sparkles,
+};
+
+const ACCENT_TILE: Record<MockInterviewAccent, string> = {
+  blue: "bg-[#E8F0FE] text-[#1A56DB]",
+  purple: "bg-[#F1EBFE] text-[#6B34C9]",
+  orange: "bg-[#FEF0E3] text-[#B5540B]",
+  green: "bg-[#E6F6EC] text-[#12793F]",
+  pink: "bg-[#FDE9F2] text-[#B4266E]",
+};
+
+const ACCENT_TEXT: Record<MockInterviewAccent, string> = {
+  blue: "text-[#1A56DB]",
+  purple: "text-[#6B34C9]",
+  orange: "text-[#B5540B]",
+  green: "text-[#12793F]",
+  pink: "text-[#B4266E]",
 };
 
 /** Career Readiness "Practice" step: demo-only Mock Interview Lab. */
