@@ -19,7 +19,7 @@ describe("MockInterviewLab overview", () => {
 
   it("returns to the mock lab from a ready screen", () => {
     render(<MockInterviewLab />);
-    fireEvent.click(screen.getByRole("button", { name: /^\1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Behavioural/ }));
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
 
     expect(screen.getByText("Mock interview lab")).toBeInTheDocument();
@@ -29,7 +29,7 @@ describe("MockInterviewLab overview", () => {
 describe("MockInterviewLab behavioural session", () => {
   it("starts the live behavioural screen with tailored prompt and checklist", () => {
     render(<MockInterviewLab />);
-    fireEvent.click(screen.getByRole("button", { name: /^\1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Behavioural/ }));
     fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
 
     expect(screen.getByText("Behavioural · Live")).toBeInTheDocument();
@@ -47,7 +47,7 @@ describe("MockInterviewLab behavioural session", () => {
 describe("MockInterviewLab agent design session", () => {
   it("starts the live agent design screen with tailored prompt and checklist", () => {
     render(<MockInterviewLab />);
-    fireEvent.click(screen.getByRole("button", { name: /^\1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^Agent Design/ }));
     fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
 
     expect(screen.getByText("Agent Design · Live")).toBeInTheDocument();
@@ -65,7 +65,7 @@ describe("MockInterviewLab agent design session", () => {
 describe("MockInterviewLab ML depth session", () => {
   it("starts the live ML depth screen with tailored prompt and checklist", () => {
     render(<MockInterviewLab />);
-    fireEvent.click(screen.getByRole("button", { name: /^\1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^ML Depth/ }));
     expect(screen.getByText("ML Depth mock · 45 min")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
 
@@ -85,7 +85,7 @@ describe("MockInterviewLab system design session", () => {
   it("opens the system design ready screen with an enabled Start timer", () => {
     render(<MockInterviewLab />);
 
-    fireEvent.click(screen.getByRole("button", { name: /^\1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^System Design/ }));
 
     expect(screen.getByText("System design mock · 60 min")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ready?" })).toBeInTheDocument();
@@ -94,7 +94,7 @@ describe("MockInterviewLab system design session", () => {
 
   it("starts the live system design screen with tailored prompt and checklist", () => {
     render(<MockInterviewLab />);
-    fireEvent.click(screen.getByRole("button", { name: /^\1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^System Design/ }));
     fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
 
     expect(screen.getByText("System design · Live")).toBeInTheDocument();
@@ -111,7 +111,7 @@ describe("MockInterviewLab system design session", () => {
 
   it("ends the session on the review screen and returns to the lab", () => {
     render(<MockInterviewLab />);
-    fireEvent.click(screen.getByRole("button", { name: /^\1/ }));
+    fireEvent.click(screen.getByRole("button", { name: /^System Design/ }));
     fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
     fireEvent.click(screen.getByRole("button", { name: "End & review" }));
 
