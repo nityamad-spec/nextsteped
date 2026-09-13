@@ -32,8 +32,8 @@ export interface RecentMock {
   when: string;
 }
 
-export const MOCK_TARGET_COUNT = 10;
-export const MOCK_COMPLETED_COUNT = 3;
+/** Target mocks per interview type. */
+export const MOCK_PER_TYPE_TARGET = 8;
 
 export const MOCK_INTERVIEW_TYPES: MockInterviewType[] = [
   {
@@ -42,6 +42,8 @@ export const MOCK_INTERVIEW_TYPES: MockInterviewType[] = [
     minutes: 45,
     description: "2 LeetCode-style problems, screenshare + narration",
     icon: "code",
+    accent: "blue",
+    completed: 1,
   },
   {
     id: "system-design",
@@ -49,6 +51,8 @@ export const MOCK_INTERVIEW_TYPES: MockInterviewType[] = [
     minutes: 60,
     description: "HLD or LLD prompt with follow-ups and trade-offs",
     icon: "network",
+    accent: "purple",
+    completed: 1,
   },
   {
     id: "ml-depth",
@@ -56,6 +60,8 @@ export const MOCK_INTERVIEW_TYPES: MockInterviewType[] = [
     minutes: 45,
     description: "Derive from scratch, defend design choices, debug models",
     icon: "brain",
+    accent: "orange",
+    completed: 0,
   },
   {
     id: "behavioural",
@@ -63,6 +69,8 @@ export const MOCK_INTERVIEW_TYPES: MockInterviewType[] = [
     minutes: 30,
     description: "STAR-format cross-examination on your stories",
     icon: "star",
+    accent: "green",
+    completed: 1,
   },
   {
     id: "agent-design",
@@ -70,8 +78,19 @@ export const MOCK_INTERVIEW_TYPES: MockInterviewType[] = [
     minutes: 60,
     description: "Multi-agent architecture prompt: planning, tools, evals",
     icon: "sparkles",
+    accent: "pink",
+    completed: 0,
   },
 ];
+
+/** Total target across every interview type (5 types x 8). */
+export const MOCK_TOTAL_TARGET = MOCK_INTERVIEW_TYPES.length * MOCK_PER_TYPE_TARGET;
+
+/** Total completed across every interview type. */
+export const MOCK_TOTAL_COMPLETED = MOCK_INTERVIEW_TYPES.reduce(
+  (sum, type) => sum + type.completed,
+  0
+);
 
 export const RECENT_MOCKS: RecentMock[] = [
   {
