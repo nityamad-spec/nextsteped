@@ -1,34 +1,26 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { Check, ChevronRight, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import MockReadyScreen from "./MockReadyScreen";
 import { cn } from "@/lib/utils";
-import {
-  CODING_COACH_CHECKLIST,
-  CODING_MOCK_MINUTES,
-  CODING_MOCK_TITLE,
-  CODING_PROMPT,
-  CODING_REVIEW_NOTES,
-  formatElapsedTime,
-} from "@/lib/codingMock";
+import { formatElapsedTime, type MockConfig } from "@/lib/codingMock";
 
 interface Props {
+  config: MockConfig;
   onExit: () => void;
 }
 
 type Stage = "ready" | "live" | "review";
 
-const TOTAL_SECONDS = CODING_MOCK_MINUTES * 60;
-
 /** Circular progress ring used for the live timer. */
-function TimerRing({ elapsed }: { elapsed: number }) {
+function TimerRing({ elapsed, totalSeconds }: { elapsed: number; totalSeconds: number }) {
   const radius = 52;
   const stroke = 8;
   const normalizedRadius = radius - stroke * 0.5;
   const circumference = normalizedRadius * 2 * Math.PI;
-  const progress = Math.min(elapsed / TOTAL_SECONDS, 1);
+  const progress = Math.min(elapsed / totalSeconds, 1);
   const dashoffset = circumference - progress * circumference;
 
   return (
@@ -60,7 +52,7 @@ function TimerRing({ elapsed }: { elapsed: number }) {
           {formatElapsedTime(elapsed)}
         </p>
         <p className="mt-1 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-          of {CODING_MOCK_MINUTES}:00
+          of {formatElapsedTime(totalSeconds)}
         </p>
       </div>
     </div>
@@ -68,7 +60,16 @@ function TimerRing({ elapsed }: { elapsed: number }) {
 }
 
 /** Live screen with prompt, timer, and coach checklist. */
-function LiveScreen({ onEnd, onAbort }: { onEnd: (elapsed: number, checkedCount: number) => void; onAbort: () => void }) {
+function LiveScreen({
+  config,
+  onEnd,
+  onAbort,
+}: {
+  config: MockConfig;
+  onEnd: (elapsed: number, checkedCount: number) => void;
+  onAbort: () => void;
+}) {
+  const totalSeconds = config.minutes * 60;
   const [elapsed, setElapsed] = useState(0);
   const [checked, setChecked] = useState<Set<string>>(new Set());
 
@@ -76,23 +77,22 @@ function LiveScreen({ onEnd, onAbort }: { onEnd: (elapsed: number, checkedCount:
     const interval = setInterval(() => {
       setElapsed((prev) => {
         const next = prev + 1;
-        if (next >= TOTAL_SECONDS) {
+        if (next >= totalSeconds) {
           clearInterval(interval);
-          return TOTAL_SECONDS;
+          return totalSeconds;
         }
         return next;
       });
     }, 1000);
     return () => clearInterval(interval);
-  }, []);
+  }, [totalSeconds]);
 
   useEffect(() => {
-    if (elapsed >= TOTAL_SECONDS) {
+    if (elapsed >= totalSeconds) {
       onEnd(elapsed, checked.size);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [elapsed, checked.size]);
-
 
   const toggle = (id: string) => {
     setChecked((prev) => {
@@ -103,20 +103,22 @@ function LiveScreen({ onEnd, onAbort }: { onEnd: (elapsed: number, checkedCount:
     });
   };
 
+  const shortTitle = config.title.replace(/ mock$/i, "");
+
   return (
     <div className="space-y-4">
       <Card className="border-l-4 border-l-primary">
         <CardContent className="space-y-3 p-5">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Coding · Live
+              {shortTitle} · Live
             </p>
           </div>
           <h3 className="font-heading text-xl font-semibold sm:text-2xl">
-            {CODING_PROMPT.question}
+            {config.prompt.question}
           </h3>
           <p className="text-sm text-muted-foreground">
-            Follow up: {CODING_PROMPT.followUp}
+            Follow up: {config.prompt.followUp}
           </p>
         </CardContent>
       </Card>
@@ -124,7 +126,7 @@ function LiveScreen({ onEnd, onAbort }: { onEnd: (elapsed: number, checkedCount:
       <div className="grid gap-4 lg:grid-cols-2">
         <Card>
           <CardContent className="flex flex-col items-center justify-center space-y-4 p-6">
-            <TimerRing elapsed={elapsed} />
+            <TimerRing elapsed={elapsed} totalSeconds={totalSeconds} />
             <div className="flex flex-wrap items-center justify-center gap-3">
               <Button onClick={() => onEnd(elapsed, checked.size)}>
                 <Check className="h-4 w-4" />
@@ -145,11 +147,11 @@ function LiveScreen({ onEnd, onAbort }: { onEnd: (elapsed: number, checkedCount:
                 Live coach
               </p>
               <p className="text-xs font-medium text-muted-foreground">
-                {checked.size}/{CODING_COACH_CHECKLIST.length} habits
+                {checked.size}/{config.checklist.length} habits
               </p>
             </div>
             <div className="space-y-2">
-              {CODING_COACH_CHECKLIST.map((item) => {
+              {config.checklist.map((item) => {
                 const isChecked = checked.has(item.id);
                 return (
                   <button
@@ -181,15 +183,25 @@ function LiveScreen({ onEnd, onAbort }: { onEnd: (elapsed: number, checkedCount:
 }
 
 /** Review screen with static demo feedback. */
-function ReviewScreen({ elapsed, checkedCount, onExit }: { elapsed: number; checkedCount: number; onExit: () => void }) {
-  const missed = CODING_COACH_CHECKLIST.filter((_, i) => i >= checkedCount);
+function ReviewScreen({
+  config,
+  elapsed,
+  checkedCount,
+  onExit,
+}: {
+  config: MockConfig;
+  elapsed: number;
+  checkedCount: number;
+  onExit: () => void;
+}) {
+  const missed = config.checklist.filter((_, i) => i >= checkedCount);
 
   return (
     <Card>
       <CardContent className="space-y-6 p-6">
         <div className="space-y-1">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Coding mock · Review
+            {config.title} · Review
           </p>
           <h2 className="font-heading text-2xl font-bold">Session complete</h2>
         </div>
@@ -200,7 +212,10 @@ function ReviewScreen({ elapsed, checkedCount, onExit }: { elapsed: number; chec
               Time used
             </p>
             <p className="mt-1 font-heading text-2xl font-semibold">
-              {formatElapsedTime(elapsed)} <span className="text-base font-normal text-muted-foreground">/ {CODING_MOCK_MINUTES}:00</span>
+              {formatElapsedTime(elapsed)}{" "}
+              <span className="text-base font-normal text-muted-foreground">
+                / {config.minutes}:00
+              </span>
             </p>
           </div>
           <div className="rounded-lg border p-4">
@@ -208,7 +223,7 @@ function ReviewScreen({ elapsed, checkedCount, onExit }: { elapsed: number; chec
               Coach habits hit
             </p>
             <p className="mt-1 font-heading text-2xl font-semibold">
-              {checkedCount}/{CODING_COACH_CHECKLIST.length}
+              {checkedCount}/{config.checklist.length}
             </p>
           </div>
         </div>
@@ -230,7 +245,7 @@ function ReviewScreen({ elapsed, checkedCount, onExit }: { elapsed: number; chec
         <div className="space-y-2">
           <p className="text-sm font-semibold">Feedback</p>
           <div className="space-y-2">
-            {CODING_REVIEW_NOTES.map((note, i) => (
+            {config.reviewNotes.map((note, i) => (
               <p key={i} className="text-sm text-muted-foreground">
                 {note.text}
               </p>
@@ -244,8 +259,8 @@ function ReviewScreen({ elapsed, checkedCount, onExit }: { elapsed: number; chec
   );
 }
 
-/** Three-screen coding mock interview session. */
-const CodingMockSession = ({ onExit }: Props) => {
+/** Three-screen mock interview session driven by a config. */
+const CodingMockSession = ({ config, onExit }: Props) => {
   const [stage, setStage] = useState<Stage>("ready");
   const [elapsedAtEnd, setElapsedAtEnd] = useState(0);
   const [checkedAtEnd, setCheckedAtEnd] = useState(0);
@@ -260,20 +275,22 @@ const CodingMockSession = ({ onExit }: Props) => {
     <div className="space-y-4">
       {stage === "ready" && (
         <MockReadyScreen
-          title={CODING_MOCK_TITLE.replace(/ mock$/i, "")}
-          minutes={CODING_MOCK_MINUTES}
+          title={config.title.replace(/ mock$/i, "")}
+          minutes={config.minutes}
           onBack={onExit}
           onStart={() => setStage("live")}
         />
       )}
       {stage === "live" && (
         <LiveScreen
+          config={config}
           onEnd={(elapsed, checked) => handleEnd(elapsed, checked)}
           onAbort={onExit}
         />
       )}
       {stage === "review" && (
         <ReviewScreen
+          config={config}
           elapsed={elapsedAtEnd}
           checkedCount={checkedAtEnd}
           onExit={onExit}

@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
   CODING_COACH_CHECKLIST,
+  CODING_MOCK_CONFIG,
   CODING_MOCK_MINUTES,
   CODING_PREP_STEPS,
   CODING_PROMPT,
   CODING_REVIEW_NOTES,
+  SYSTEM_DESIGN_MOCK_CONFIG,
   formatElapsedTime,
 } from "./codingMock";
 
@@ -40,5 +42,25 @@ describe("codingMock", () => {
 
   it("clamps negative elapsed time to zero", () => {
     expect(formatElapsedTime(-10)).toBe("00:00");
+  });
+});
+
+describe("mock configs", () => {
+  it("coding config mirrors the coding constants", () => {
+    expect(CODING_MOCK_CONFIG.minutes).toBe(CODING_MOCK_MINUTES);
+    expect(CODING_MOCK_CONFIG.prompt).toBe(CODING_PROMPT);
+    expect(CODING_MOCK_CONFIG.checklist).toBe(CODING_COACH_CHECKLIST);
+    expect(CODING_MOCK_CONFIG.reviewNotes).toBe(CODING_REVIEW_NOTES);
+  });
+
+  it("system design config has a 60-minute session with tailored content", () => {
+    expect(SYSTEM_DESIGN_MOCK_CONFIG.minutes).toBe(60);
+    expect(SYSTEM_DESIGN_MOCK_CONFIG.prompt.question).toContain("Swiggy");
+    expect(SYSTEM_DESIGN_MOCK_CONFIG.prompt.followUp).toContain("data model");
+    expect(SYSTEM_DESIGN_MOCK_CONFIG.checklist).toHaveLength(6);
+    expect(
+      new Set(SYSTEM_DESIGN_MOCK_CONFIG.checklist.map((c) => c.id)).size
+    ).toBe(6);
+    expect(SYSTEM_DESIGN_MOCK_CONFIG.reviewNotes.length).toBeGreaterThan(0);
   });
 });
