@@ -64,9 +64,7 @@ const StarStoryBuilder = ({ targetRole, stories, onStoriesChange, onGoToPractice
   const [reviewing, setReviewing] = useState<StarStory | null>(null);
   const [improving, setImproving] = useState(false);
   const studentStoryCount = stories.filter(isStudentCreatedStory).length;
-  const practiceUnlocked = studentStoryCount >= 5;
 
-  
   const coverageSlots = Array.from({ length: STAR_TARGET_STORIES });
 
   const updateDraft = (patch: Partial<StarStory>) =>
