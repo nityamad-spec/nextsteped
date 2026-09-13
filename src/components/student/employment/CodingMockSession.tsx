@@ -126,10 +126,11 @@ function LiveScreen({ onEnd, onAbort }: { onEnd: (elapsed: number, checkedCount:
 
   useEffect(() => {
     if (elapsed >= TOTAL_SECONDS) {
-      onEnd();
+      onEnd(elapsed, checked.size);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [elapsed]);
+  }, [elapsed, checked.size]);
+
 
   const toggle = (id: string) => {
     setChecked((prev) => {
