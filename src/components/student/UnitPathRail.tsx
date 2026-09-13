@@ -209,7 +209,8 @@ const UnitPathRail = ({
               }
 
               const isDone = doneDays.has(item.day);
-              const isCurrent = item.day === currentDay;
+              const isCurrent = hasCurrent && item.day === currentDay;
+              const isLocked = !!lockedDays?.has(item.day) && !isCurrent && !isDone;
               const isSelected = item.day === selectedDay;
               const far = !fitsOnOneLine && item.index > currentIndex + 2;
 
@@ -232,7 +233,7 @@ const UnitPathRail = ({
                     }}
                     type="button"
                     onClick={() => onSelect(item.day)}
-                    aria-label={`Unit ${item.day}: ${labels[item.day] ?? ""}`}
+                    aria-label={`Unit ${item.day}: ${labels[item.day] ?? ""}${isLocked ? " (locked)" : ""}`}
                     aria-current={isSelected ? "step" : undefined}
                     className={`flex items-center justify-center rounded-full font-bold transition-transform hover:scale-105 ${
                       isCurrent ? "h-12 w-12 text-base" : "h-11 w-11 text-sm"
@@ -241,14 +242,20 @@ const UnitPathRail = ({
                         ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
                         : isDone
                           ? "bg-emerald-500 text-white"
-                          : "border-2 border-muted-foreground/20 bg-background text-muted-foreground"
+                          : isLocked
+                            ? "border-2 border-muted bg-muted text-muted-foreground/70"
+                            : "border-2 border-muted-foreground/20 bg-background text-muted-foreground"
                     } ${isSelected && !isCurrent ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}
                   >
                     {isDone && !isCurrent ? <Check className="h-5 w-5" strokeWidth={3} /> : item.day}
                   </button>
                   <div
                     className={`mt-2 w-full overflow-hidden text-center text-[11px] leading-tight ${
-                      isCurrent ? "font-semibold text-primary" : "text-muted-foreground"
+                      isCurrent
+                        ? "font-semibold text-primary"
+                        : isLocked
+                          ? "text-muted-foreground/70"
+                          : "text-muted-foreground"
                     }`}
                   >
                     <span className="block truncate">Unit {item.day}</span>
