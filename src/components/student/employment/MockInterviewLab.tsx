@@ -8,7 +8,11 @@ import {
   RECENT_MOCKS,
   type MockInterviewIcon,
 } from "@/lib/mockInterviews";
-import { CODING_MOCK_CONFIG, SYSTEM_DESIGN_MOCK_CONFIG } from "@/lib/codingMock";
+import {
+  CODING_MOCK_CONFIG,
+  ML_DEPTH_MOCK_CONFIG,
+  SYSTEM_DESIGN_MOCK_CONFIG,
+} from "@/lib/codingMock";
 import CodingMockSession from "./CodingMockSession";
 import MockReadyScreen from "./MockReadyScreen";
 

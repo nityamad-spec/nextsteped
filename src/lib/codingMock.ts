@@ -88,6 +88,29 @@ export const SYSTEM_DESIGN_MOCK_CONFIG: MockConfig = {
   ],
 };
 
+export const ML_DEPTH_MOCK_CONFIG: MockConfig = {
+  title: "ML Depth mock",
+  minutes: 45,
+  prompt: {
+    question: "Design a fraud detection system for a payments company.",
+    followUp:
+      "Cover: labels, features, model choice, class imbalance, serving latency, drift monitoring.",
+  },
+  checklist: [
+    { id: "target", label: "Define the prediction target and label strategy" },
+    { id: "features", label: "Discuss feature sources and leakage risks" },
+    { id: "model", label: "Justify model choice against a simple baseline" },
+    { id: "imbalance", label: "Handle class imbalance explicitly" },
+    { id: "metrics", label: "State evaluation metrics beyond accuracy" },
+    { id: "serving", label: "Cover serving latency, retraining, and drift monitoring" },
+  ],
+  reviewNotes: [
+    { text: "You defined the label and its delay clearly — that is the hardest part of fraud modelling." },
+    { text: "Compare against a simple baseline before proposing a complex model." },
+    { text: "Say more about drift monitoring and retraining cadence; it shows production maturity." },
+  ],
+};
+
 export function formatElapsedTime(seconds: number): string {
   const clamped = Math.max(0, seconds);
   const m = Math.floor(clamped / 60);
