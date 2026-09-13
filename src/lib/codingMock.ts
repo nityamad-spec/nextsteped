@@ -156,6 +156,16 @@ export const AGENT_DESIGN_MOCK_CONFIG: MockConfig = {
   ],
 };
 
+/** Configs keyed by the interview-type id used across the Mock Interview Lab. */
+export const MOCK_CONFIG_BY_ID: Record<string, MockConfig> = {
+  coding: CODING_MOCK_CONFIG,
+  "system-design": SYSTEM_DESIGN_MOCK_CONFIG,
+  "ml-depth": ML_DEPTH_MOCK_CONFIG,
+  behavioural: BEHAVIOURAL_MOCK_CONFIG,
+  "agent-design": AGENT_DESIGN_MOCK_CONFIG,
+};
+
+
 export function formatElapsedTime(seconds: number): string {
   const clamped = Math.max(0, seconds);
   const m = Math.floor(clamped / 60);

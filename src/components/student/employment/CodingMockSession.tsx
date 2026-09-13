@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
 import MockReadyScreen from "./MockReadyScreen";
+import MockReviewScreen from "./MockReviewScreen";
 import { cn } from "@/lib/utils";
 import { formatElapsedTime, type MockConfig } from "@/lib/codingMock";
 
@@ -182,82 +183,6 @@ function LiveScreen({
   );
 }
 
-/** Review screen with static demo feedback. */
-function ReviewScreen({
-  config,
-  elapsed,
-  checkedCount,
-  onExit,
-}: {
-  config: MockConfig;
-  elapsed: number;
-  checkedCount: number;
-  onExit: () => void;
-}) {
-  const missed = config.checklist.filter((_, i) => i >= checkedCount);
-
-  return (
-    <Card>
-      <CardContent className="space-y-6 p-6">
-        <div className="space-y-1">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {config.title} · Review
-          </p>
-          <h2 className="font-heading text-2xl font-bold">Session complete</h2>
-        </div>
-
-        <div className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border p-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Time used
-            </p>
-            <p className="mt-1 font-heading text-2xl font-semibold">
-              {formatElapsedTime(elapsed)}{" "}
-              <span className="text-base font-normal text-muted-foreground">
-                / {config.minutes}:00
-              </span>
-            </p>
-          </div>
-          <div className="rounded-lg border p-4">
-            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-              Coach habits hit
-            </p>
-            <p className="mt-1 font-heading text-2xl font-semibold">
-              {checkedCount}/{config.checklist.length}
-            </p>
-          </div>
-        </div>
-
-        {missed.length > 0 && (
-          <div className="space-y-2">
-            <p className="text-sm font-semibold">Habits to focus on next time</p>
-            <ul className="space-y-1.5">
-              {missed.map((item) => (
-                <li key={item.id} className="flex items-start gap-2 text-sm text-muted-foreground">
-                  <ChevronRight className="mt-0.5 h-4 w-4 flex-none text-primary" />
-                  {item.label}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-
-        <div className="space-y-2">
-          <p className="text-sm font-semibold">Feedback</p>
-          <div className="space-y-2">
-            {config.reviewNotes.map((note, i) => (
-              <p key={i} className="text-sm text-muted-foreground">
-                {note.text}
-              </p>
-            ))}
-          </div>
-        </div>
-
-        <Button onClick={onExit}>Back to mock lab</Button>
-      </CardContent>
-    </Card>
-  );
-}
 
 /** Three-screen mock interview session driven by a config. */
 const CodingMockSession = ({ config, onExit }: Props) => {
@@ -289,7 +214,7 @@ const CodingMockSession = ({ config, onExit }: Props) => {
         />
       )}
       {stage === "review" && (
-        <ReviewScreen
+        <MockReviewScreen
           config={config}
           elapsed={elapsedAtEnd}
           checkedCount={checkedAtEnd}

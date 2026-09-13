@@ -26,12 +26,17 @@ export interface MockInterviewType {
 
 export interface RecentMock {
   id: string;
+  /** Interview-type id this session used, e.g. "coding". */
+  typeId: string;
   type: string;
   note: string;
   score: number;
   when: string;
   icon: MockInterviewIcon;
   accent: MockInterviewAccent;
+  /** Demo-only session stats shown on the review page. */
+  elapsedSeconds: number;
+  habitsHit: number;
 }
 
 /** Target mocks per interview type. */
@@ -97,29 +102,38 @@ export const MOCK_TOTAL_COMPLETED = MOCK_INTERVIEW_TYPES.reduce(
 export const RECENT_MOCKS: RecentMock[] = [
   {
     id: "r1",
+    typeId: "coding",
     type: "Coding",
     note: "Cleaner brute force before optimizing",
     score: 8,
     when: "3 days ago",
     icon: "code",
     accent: "blue",
+    elapsedSeconds: 41 * 60 + 18,
+    habitsHit: 5,
   },
   {
     id: "r2",
+    typeId: "system-design",
     type: "System Design",
     note: "Missed monitoring + eval discussion",
     score: 6,
     when: "1 week ago",
     icon: "network",
     accent: "purple",
+    elapsedSeconds: 57 * 60 + 4,
+    habitsHit: 4,
   },
   {
     id: "r3",
+    typeId: "behavioural",
     type: "Behavioural",
     note: "STAR structure got sloppy in story 2",
     score: 7,
     when: "2 weeks ago",
     icon: "star",
     accent: "green",
+    elapsedSeconds: 26 * 60 + 40,
+    habitsHit: 4,
   },
 ];

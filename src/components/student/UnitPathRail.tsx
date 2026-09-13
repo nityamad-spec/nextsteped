@@ -11,6 +11,8 @@ export interface UnitPathRailProps {
   doneDays: ReadonlySet<number>;
   /** The unit the course clock says the student is on. */
   currentDay: number;
+  /** Units the student cannot act on yet — shown muted. */
+  lockedDays?: ReadonlySet<number>;
   /** The unit whose detail panel is open. */
   selectedDay: number;
   onSelect: (day: number) => void;
@@ -26,7 +28,15 @@ interface TrackGeometry {
 /** Width a single unit node needs to show its two-line label comfortably. */
 const UNIT_SLOT_PX = 128;
 
-const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelect }: UnitPathRailProps) => {
+const UnitPathRail = ({
+  days,
+  labels,
+  doneDays,
+  currentDay,
+  lockedDays,
+  selectedDay,
+  onSelect,
+}: UnitPathRailProps) => {
   const [expanded, setExpanded] = useState<RailPillId[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const rowRef = useRef<HTMLDivElement>(null);
@@ -48,10 +58,14 @@ const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelec
     return () => ro.disconnect();
   }, [days.length]);
 
+  // The student's current unit may sit outside this slice of the path (for
+  // example a later stage); then no node is marked "You're here".
+  const hasCurrent = days.includes(currentDay);
+  const anchorDay = hasCurrent ? currentDay : days[0];
   const items: ReturnType<typeof buildRail> = fitsOnOneLine
     ? days.map((day, index) => ({ kind: "unit", day, index }))
-    : buildRail({ days, currentDay, expanded });
-  const currentIndex = days.indexOf(currentDay);
+    : buildRail({ days, currentDay: anchorDay, expanded });
+  const currentIndex = days.indexOf(anchorDay);
   itemRefs.current.length = items.length;
 
   // Measure the track: it spans from the centre of the first item to the
@@ -195,7 +209,8 @@ const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelec
               }
 
               const isDone = doneDays.has(item.day);
-              const isCurrent = item.day === currentDay;
+              const isCurrent = hasCurrent && item.day === currentDay;
+              const isLocked = !!lockedDays?.has(item.day) && !isCurrent && !isDone;
               const isSelected = item.day === selectedDay;
               const far = !fitsOnOneLine && item.index > currentIndex + 2;
 
@@ -218,7 +233,7 @@ const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelec
                     }}
                     type="button"
                     onClick={() => onSelect(item.day)}
-                    aria-label={`Unit ${item.day}: ${labels[item.day] ?? ""}`}
+                    aria-label={`Unit ${item.day}: ${labels[item.day] ?? ""}${isLocked ? " (locked)" : ""}`}
                     aria-current={isSelected ? "step" : undefined}
                     className={`flex items-center justify-center rounded-full font-bold transition-transform hover:scale-105 ${
                       isCurrent ? "h-12 w-12 text-base" : "h-11 w-11 text-sm"
@@ -227,14 +242,20 @@ const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelec
                         ? "bg-primary text-primary-foreground ring-4 ring-primary/20"
                         : isDone
                           ? "bg-emerald-500 text-white"
-                          : "border-2 border-muted-foreground/20 bg-background text-muted-foreground"
+                          : isLocked
+                            ? "border-2 border-muted bg-muted text-muted-foreground/70"
+                            : "border-2 border-muted-foreground/20 bg-background text-muted-foreground"
                     } ${isSelected && !isCurrent ? "ring-2 ring-primary ring-offset-2 ring-offset-background" : ""}`}
                   >
                     {isDone && !isCurrent ? <Check className="h-5 w-5" strokeWidth={3} /> : item.day}
                   </button>
                   <div
                     className={`mt-2 w-full overflow-hidden text-center text-[11px] leading-tight ${
-                      isCurrent ? "font-semibold text-primary" : "text-muted-foreground"
+                      isCurrent
+                        ? "font-semibold text-primary"
+                        : isLocked
+                          ? "text-muted-foreground/70"
+                          : "text-muted-foreground"
                     }`}
                   >
                     <span className="block truncate">Unit {item.day}</span>

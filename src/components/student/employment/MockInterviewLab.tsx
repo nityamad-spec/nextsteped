@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Brain, Code2, Network, Sparkles, Star } from "lucide-react";
+import { Brain, ChevronRight, Code2, Network, Sparkles, Star } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   MOCK_INTERVIEW_TYPES,
@@ -15,10 +15,12 @@ import {
   BEHAVIOURAL_MOCK_CONFIG,
   CODING_MOCK_CONFIG,
   ML_DEPTH_MOCK_CONFIG,
+  MOCK_CONFIG_BY_ID,
   SYSTEM_DESIGN_MOCK_CONFIG,
 } from "@/lib/codingMock";
 import CodingMockSession from "./CodingMockSession";
 import MockReadyScreen from "./MockReadyScreen";
+import MockReviewScreen from "./MockReviewScreen";
 
 const ICONS: Record<MockInterviewIcon, typeof Code2> = {
   code: Code2,
@@ -47,6 +49,25 @@ const ACCENT_TEXT: Record<MockInterviewAccent, string> = {
 /** Career Readiness "Practice" step: demo-only Mock Interview Lab. */
 const MockInterviewLab = () => {
   const [activeMock, setActiveMock] = useState<string | null>(null);
+  const [reviewMockId, setReviewMockId] = useState<string | null>(null);
+
+  const reviewMock = RECENT_MOCKS.find((r) => r.id === reviewMockId);
+  const reviewConfig = reviewMock ? MOCK_CONFIG_BY_ID[reviewMock.typeId] : undefined;
+  if (reviewMock && reviewConfig) {
+    return (
+      <MockReviewScreen
+        config={reviewConfig}
+        elapsed={reviewMock.elapsedSeconds}
+        checkedCount={reviewMock.habitsHit}
+        heading={`${reviewMock.type} mock review`}
+        when={reviewMock.when}
+        score={reviewMock.score}
+        showRecording
+        onExit={() => setReviewMockId(null)}
+      />
+    );
+  }
+
 
   if (activeMock === "coding") {
     return <CodingMockSession config={CODING_MOCK_CONFIG} onExit={() => setActiveMock(null)} />;
@@ -161,9 +182,12 @@ const MockInterviewLab = () => {
             {RECENT_MOCKS.map((r) => {
               const Icon = ICONS[r.icon];
               return (
-                <div
+                <button
                   key={r.id}
-                  className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-[#DFE3FB] bg-background p-3"
+                  type="button"
+                  onClick={() => setReviewMockId(r.id)}
+                  aria-label={`Review ${r.type} mock from ${r.when}`}
+                  className="flex w-full flex-wrap items-start justify-between gap-3 rounded-lg border border-[#DFE3FB] bg-background p-3 text-left transition-shadow hover:shadow-md"
                 >
                   <div className="flex min-w-0 items-start gap-3">
                     <Icon
@@ -174,10 +198,11 @@ const MockInterviewLab = () => {
                       <p className="text-xs text-muted-foreground">{r.note}</p>
                     </div>
                   </div>
-                  <div className="flex-none text-right">
+                  <div className="flex flex-none items-center gap-2 text-right">
                     <p className="text-xs text-muted-foreground">{r.when}</p>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground" />
                   </div>
-                </div>
+                </button>
               );
             })}
           </div>
