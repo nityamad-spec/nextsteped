@@ -36,7 +36,7 @@ describe("MockInterviewLab system design session", () => {
 
     fireEvent.click(screen.getByRole("button", { name: /System Design/i }));
 
-    expect(screen.getByText("System Design mock · 60 min")).toBeInTheDocument();
+    expect(screen.getByText("System design mock · 60 min")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ready?" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start timer" })).toBeEnabled();
   });
@@ -46,7 +46,7 @@ describe("MockInterviewLab system design session", () => {
     fireEvent.click(screen.getByRole("button", { name: /System Design/i }));
     fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
 
-    expect(screen.getByText("System Design · Live")).toBeInTheDocument();
+    expect(screen.getByText("System design · Live")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
         name: /Design Swiggy's real-time delivery ETA system/i,
