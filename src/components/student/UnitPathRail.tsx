@@ -23,6 +23,9 @@ interface TrackGeometry {
   fill: number;
 }
 
+/** Width a single unit node needs to show its two-line label comfortably. */
+const UNIT_SLOT_PX = 128;
+
 const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelect }: UnitPathRailProps) => {
   const [expanded, setExpanded] = useState<RailPillId[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -31,8 +34,23 @@ const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelec
   const itemRefs = useRef<(HTMLElement | null)[]>([]);
   const [showFade, setShowFade] = useState(false);
   const [track, setTrack] = useState<TrackGeometry | null>(null);
+  // Every unit on one line without scrolling? Then spread them out and drop
+  // the collapsed pills and the "expand a group, then scroll" hint.
+  const [fitsOnOneLine, setFitsOnOneLine] = useState(false);
 
-  const items = buildRail({ days, currentDay, expanded });
+  useLayoutEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    const measureFit = () => setFitsOnOneLine(el.clientWidth >= days.length * UNIT_SLOT_PX);
+    measureFit();
+    const ro = new ResizeObserver(measureFit);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [days.length]);
+
+  const items: ReturnType<typeof buildRail> = fitsOnOneLine
+    ? days.map((day, index) => ({ kind: "unit", day, index }))
+    : buildRail({ days, currentDay, expanded });
   const currentIndex = days.indexOf(currentDay);
   itemRefs.current.length = items.length;
 
