@@ -197,13 +197,15 @@ const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelec
               const isDone = doneDays.has(item.day);
               const isCurrent = item.day === currentDay;
               const isSelected = item.day === selectedDay;
-              const far = item.index > currentIndex + 2;
+              const far = !fitsOnOneLine && item.index > currentIndex + 2;
 
               return (
                 <div
                   key={item.day}
                   ref={isCurrent ? currentRef : undefined}
-                  className={`relative z-10 flex w-20 shrink-0 flex-col items-center ${far ? "opacity-50" : ""}`}
+                  className={`relative z-10 flex shrink-0 flex-col items-center ${
+                    fitsOnOneLine ? "w-28" : "w-20"
+                  } ${far ? "opacity-50" : ""}`}
                 >
                   <span
                     className={`mb-1 h-5 text-[10px] font-semibold text-primary ${isCurrent ? "" : "invisible"}`}
