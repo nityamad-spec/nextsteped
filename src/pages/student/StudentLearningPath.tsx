@@ -487,6 +487,12 @@ const StudentLearningPath = () => {
           practiceViaTerminal={codingApproved}
           onTakeQuiz={() => attemptOpenQuiz(unit.day)}
           onGoToNextUnit={() => nextDay && setSelectedUnit(nextDay)}
+          locked={locked}
+          unlockHint={
+            activeUnit !== null
+              ? `Reach ${READINESS_THRESHOLD}% mastery in Unit ${activeUnit} to unlock this unit.`
+              : undefined
+          }
         />
       </div>
     );
