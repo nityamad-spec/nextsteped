@@ -444,7 +444,8 @@ const StudentLearningPath = () => {
           days={days}
           labels={unitLabels}
           doneDays={doneDays}
-          currentDay={days.includes(displayedUnit) ? displayedUnit : days[0]}
+          currentDay={activeUnit ?? displayedUnit}
+          lockedDays={new Set(days.filter(isUnitLocked))}
           selectedDay={unit.day}
           onSelect={(d) => setSelectedUnit(d)}
         />
