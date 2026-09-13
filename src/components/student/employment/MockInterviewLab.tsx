@@ -127,12 +127,21 @@ const MockInterviewLab = () => {
               }}
             >
               <CardContent className="space-y-2 p-4">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
-                  <Icon className="h-4.5 w-4.5" />
+                <div className="flex items-start justify-between gap-2">
+                  <div
+                    className={`flex h-9 w-9 items-center justify-center rounded-lg ${ACCENT_TILE[m.accent]}`}
+                  >
+                    <Icon className="h-4.5 w-4.5" />
+                  </div>
+                  <p className={`text-xs font-semibold ${ACCENT_TEXT[m.accent]}`}>
+                    {m.completed}/{MOCK_PER_TYPE_TARGET}
+                  </p>
                 </div>
                 <div>
                   <p className="text-sm font-semibold">{m.title}</p>
-                  <p className="text-xs font-semibold uppercase tracking-wider text-primary">
+                  <p
+                    className={`text-xs font-semibold uppercase tracking-wider ${ACCENT_TEXT[m.accent]}`}
+                  >
                     {m.minutes} min
                   </p>
                 </div>
@@ -143,7 +152,7 @@ const MockInterviewLab = () => {
         })}
       </div>
 
-      <Card>
+      <Card className="border-[#DFE3FB] bg-[#F3F5FE]">
         <CardContent className="space-y-2 p-4">
           <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             Recent mocks
@@ -152,7 +161,7 @@ const MockInterviewLab = () => {
             {RECENT_MOCKS.map((r) => (
               <div
                 key={r.id}
-                className="flex flex-wrap items-start justify-between gap-3 rounded-lg border p-3"
+                className="flex flex-wrap items-start justify-between gap-3 rounded-lg border border-[#DFE3FB] bg-background p-3"
               >
                 <div className="flex min-w-0 items-start gap-3">
                   <div className="flex h-7 w-7 flex-none items-center justify-center rounded-md bg-primary/10 text-xs font-semibold text-primary">
@@ -164,10 +173,6 @@ const MockInterviewLab = () => {
                   </div>
                 </div>
                 <div className="flex-none text-right">
-                  <p className="text-sm font-semibold">
-                    {r.score}
-                    <span className="text-muted-foreground">/10</span>
-                  </p>
                   <p className="text-xs text-muted-foreground">{r.when}</p>
                 </div>
               </div>
