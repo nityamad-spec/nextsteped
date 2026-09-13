@@ -410,6 +410,14 @@ const StudentLearningPath = () => {
   const openWeak = openUnit ? (weakConceptsByUnit[openUnit.day] ?? []) : [];
   const openVoids = openUnit ? (voidCounts[openUnit.day] ?? 0) : 0;
 
+  // Students move through the units in order: the first unit not yet at the
+  // mastery goal is the only one they can act on. Later units stay readable.
+  const activeUnit =
+    lessonPlan.find((w) => (readinessByUnit[w.day] ?? 0) < READINESS_THRESHOLD)?.day ??
+    lessonPlan[lessonPlan.length - 1]?.day ??
+    null;
+  const isUnitLocked = (day: number) => activeUnit !== null && day > activeUnit;
+
   /** Rail + detail panel for a set of unit numbers (whole course, or one stage). */
   const renderUnitArea = (days: number[]) => {
     if (days.length === 0) {
@@ -428,6 +436,7 @@ const StudentLearningPath = () => {
     const weak = weakConceptsByUnit[unit.day] ?? [];
     const voids = voidCounts[unit.day] ?? 0;
     const nextDay = days[days.indexOf(unit.day) + 1];
+    const locked = isUnitLocked(unit.day);
 
     return (
       <div className="space-y-4">
