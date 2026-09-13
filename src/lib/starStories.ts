@@ -21,6 +21,10 @@ export interface CommonPrompt {
   guidance: string;
 }
 
+/** Demo stories are examples only; locally created stories count toward Practice. */
+export const isStudentCreatedStory = (story: StarStory): boolean =>
+  story.id.startsWith("local-");
+
 /** Behavioural themes a story can map to (demo set). */
 export const STAR_THEMES: string[] = [
   "Customer obsession",
