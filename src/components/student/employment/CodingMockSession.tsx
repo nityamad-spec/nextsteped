@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, ChevronRight, Play, Square } from "lucide-react";
+import { Check, ChevronRight, Square } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import MockReadyScreen from "./MockReadyScreen";
 import { cn } from "@/lib/utils";
 import {
   CODING_COACH_CHECKLIST,
   CODING_MOCK_MINUTES,
   CODING_MOCK_TITLE,
-  CODING_PREP_STEPS,
   CODING_PROMPT,
   CODING_REVIEW_NOTES,
   formatElapsedTime,
@@ -64,44 +64,6 @@ function TimerRing({ elapsed }: { elapsed: number }) {
         </p>
       </div>
     </div>
-  );
-}
-
-/** Ready screen with prep steps and start/back buttons. */
-function ReadyScreen({ onStart }: { onStart: () => void }) {
-  return (
-    <Card>
-      <CardContent className="space-y-6 p-6">
-        <div className="space-y-2">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            {CODING_MOCK_TITLE} · {CODING_MOCK_MINUTES} min
-          </p>
-          <h2 className="font-heading text-3xl font-bold">Ready?</h2>
-          <p className="text-sm text-muted-foreground">Before you start:</p>
-        </div>
-
-        <div className="space-y-3">
-          {CODING_PREP_STEPS.map((step) => (
-            <div
-              key={step.number}
-              className="flex items-center gap-4 rounded-lg border p-4"
-            >
-              <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-primary/10 text-sm font-semibold text-primary">
-                {step.number}
-              </div>
-              <p className="text-sm font-medium">{step.text}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="flex flex-wrap items-center gap-3">
-          <Button onClick={onStart}>
-            <Play className="h-4 w-4" />
-            Start timer
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
   );
 }
 
@@ -296,7 +258,14 @@ const CodingMockSession = ({ onExit }: Props) => {
 
   return (
     <div className="space-y-4">
-      {stage === "ready" && <ReadyScreen onStart={() => setStage("live")} />}
+      {stage === "ready" && (
+        <MockReadyScreen
+          title={CODING_MOCK_TITLE.replace(/ mock$/i, "")}
+          minutes={CODING_MOCK_MINUTES}
+          onBack={onExit}
+          onStart={() => setStage("live")}
+        />
+      )}
       {stage === "live" && (
         <LiveScreen
           onEnd={(elapsed, checked) => handleEnd(elapsed, checked)}

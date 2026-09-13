@@ -9,6 +9,7 @@ import {
   type MockInterviewIcon,
 } from "@/lib/mockInterviews";
 import CodingMockSession from "./CodingMockSession";
+import MockReadyScreen from "./MockReadyScreen";
 
 const ICONS: Record<MockInterviewIcon, typeof Code2> = {
   code: Code2,
@@ -24,6 +25,17 @@ const MockInterviewLab = () => {
 
   if (activeMock === "coding") {
     return <CodingMockSession onExit={() => setActiveMock(null)} />;
+  }
+
+  const selectedMock = MOCK_INTERVIEW_TYPES.find((mock) => mock.id === activeMock);
+  if (selectedMock) {
+    return (
+      <MockReadyScreen
+        title={selectedMock.title}
+        minutes={selectedMock.minutes}
+        onBack={() => setActiveMock(null)}
+      />
+    );
   }
 
   return (
@@ -52,16 +64,15 @@ const MockInterviewLab = () => {
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {MOCK_INTERVIEW_TYPES.map((m) => {
           const Icon = ICONS[m.icon];
-          const isCoding = m.id === "coding";
           return (
             <Card
               key={m.id}
-              className={isCoding ? "cursor-pointer transition-shadow hover:shadow-md" : ""}
-              onClick={() => isCoding && setActiveMock(m.id)}
-              role={isCoding ? "button" : undefined}
-              tabIndex={isCoding ? 0 : undefined}
+              className="cursor-pointer transition-shadow hover:shadow-md"
+              onClick={() => setActiveMock(m.id)}
+              role="button"
+              tabIndex={0}
               onKeyDown={(e) => {
-                if (isCoding && (e.key === "Enter" || e.key === " ")) {
+                if (e.key === "Enter" || e.key === " ") {
                   e.preventDefault();
                   setActiveMock(m.id);
                 }
