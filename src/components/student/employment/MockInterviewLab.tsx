@@ -8,6 +8,7 @@ import {
   RECENT_MOCKS,
   type MockInterviewIcon,
 } from "@/lib/mockInterviews";
+import { CODING_MOCK_CONFIG, SYSTEM_DESIGN_MOCK_CONFIG } from "@/lib/codingMock";
 import CodingMockSession from "./CodingMockSession";
 import MockReadyScreen from "./MockReadyScreen";
 
@@ -24,7 +25,13 @@ const MockInterviewLab = () => {
   const [activeMock, setActiveMock] = useState<string | null>(null);
 
   if (activeMock === "coding") {
-    return <CodingMockSession onExit={() => setActiveMock(null)} />;
+    return <CodingMockSession config={CODING_MOCK_CONFIG} onExit={() => setActiveMock(null)} />;
+  }
+
+  if (activeMock === "system-design") {
+    return (
+      <CodingMockSession config={SYSTEM_DESIGN_MOCK_CONFIG} onExit={() => setActiveMock(null)} />
+    );
   }
 
   const selectedMock = MOCK_INTERVIEW_TYPES.find((mock) => mock.id === activeMock);
