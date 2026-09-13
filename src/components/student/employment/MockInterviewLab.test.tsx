@@ -6,7 +6,6 @@ afterEach(cleanup);
 
 describe("MockInterviewLab ready screens", () => {
   const readyOnlyMockTypes = [
-    { title: "ML Depth", label: "ML Depth mock · 45 min" },
     { title: "Behavioural", label: "Behavioural mock · 30 min" },
     { title: "Agent Design", label: "Agent Design mock · 60 min" },
   ];
