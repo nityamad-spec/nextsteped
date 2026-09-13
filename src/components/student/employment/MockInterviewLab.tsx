@@ -49,6 +49,25 @@ const ACCENT_TEXT: Record<MockInterviewAccent, string> = {
 /** Career Readiness "Practice" step: demo-only Mock Interview Lab. */
 const MockInterviewLab = () => {
   const [activeMock, setActiveMock] = useState<string | null>(null);
+  const [reviewMockId, setReviewMockId] = useState<string | null>(null);
+
+  const reviewMock = RECENT_MOCKS.find((r) => r.id === reviewMockId);
+  const reviewConfig = reviewMock ? MOCK_CONFIG_BY_ID[reviewMock.typeId] : undefined;
+  if (reviewMock && reviewConfig) {
+    return (
+      <MockReviewScreen
+        config={reviewConfig}
+        elapsed={reviewMock.elapsedSeconds}
+        checkedCount={reviewMock.habitsHit}
+        heading={`${reviewMock.type} mock review`}
+        when={reviewMock.when}
+        score={reviewMock.score}
+        showRecording
+        onExit={() => setReviewMockId(null)}
+      />
+    );
+  }
+
 
   if (activeMock === "coding") {
     return <CodingMockSession config={CODING_MOCK_CONFIG} onExit={() => setActiveMock(null)} />;
