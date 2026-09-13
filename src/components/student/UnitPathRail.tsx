@@ -130,12 +130,22 @@ const UnitPathRail = ({ days, labels, doneDays, currentDay, selectedDay, onSelec
       </div>
 
       <p className="mb-3 text-xs text-muted-foreground">
-        All {days.length} units on one line · tap a group to expand it in place, then scroll →
+        {fitsOnOneLine
+          ? `All ${days.length} units · tap a unit to open it`
+          : `All ${days.length} units on one line · tap a group to expand it in place, then scroll →`}
       </p>
 
       <div className="relative">
-        <div ref={scrollRef} className="overflow-x-auto pb-2 [scrollbar-width:thin]">
-          <div ref={rowRef} className="relative flex min-w-max items-start gap-6 px-1 pt-6 sm:gap-8">
+        <div
+          ref={scrollRef}
+          className={fitsOnOneLine ? "pb-2" : "overflow-x-auto pb-2 [scrollbar-width:thin]"}
+        >
+          <div
+            ref={rowRef}
+            className={`relative flex items-start px-1 pt-6 ${
+              fitsOnOneLine ? "w-full justify-between gap-4" : "min-w-max gap-6 sm:gap-8"
+            }`}
+          >
             {/* One continuous track behind the nodes. */}
             {track && (
               <>
