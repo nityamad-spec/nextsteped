@@ -62,6 +62,19 @@ const MockInterviewLab = () => {
     return <CodingMockSession config={ML_DEPTH_MOCK_CONFIG} onExit={() => setActiveMock(null)} />;
   }
 
+  if (activeMock === "behavioural") {
+    return (
+      <CodingMockSession config={BEHAVIOURAL_MOCK_CONFIG} onExit={() => setActiveMock(null)} />
+    );
+  }
+
+  if (activeMock === "agent-design") {
+    return (
+      <CodingMockSession config={AGENT_DESIGN_MOCK_CONFIG} onExit={() => setActiveMock(null)} />
+    );
+  }
+
+
   const selectedMock = MOCK_INTERVIEW_TYPES.find((mock) => mock.id === activeMock);
   if (selectedMock) {
     return (
@@ -81,17 +94,17 @@ const MockInterviewLab = () => {
             Mock interview lab
           </p>
           <p className="mt-1 max-w-2xl text-sm text-muted-foreground">
-            Aim for 8–10 mocks before onsites. Record yourself. Review body
-            language, filler words, and clarity.
+            Aim for 8–10 mocks on each interview type before onsites. Record
+            yourself. Review body language, filler words, and clarity.
           </p>
         </div>
         <div className="flex-none text-right">
-          <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-            Completed
+          <p className="text-xs font-semibold uppercase tracking-wider text-black dark:text-white">
+            Total completed
           </p>
-          <p className="text-lg font-semibold">
-            <span className="text-primary">{MOCK_COMPLETED_COUNT}</span>
-            <span className="text-muted-foreground">/{MOCK_TARGET_COUNT}</span>
+          <p className="text-lg font-semibold text-black dark:text-white">
+            <span className="text-primary">{MOCK_TOTAL_COMPLETED}</span>
+            <span>/{MOCK_TOTAL_TARGET}</span>
           </p>
         </div>
       </div>
