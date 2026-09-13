@@ -280,14 +280,28 @@ const UnitDetailPanel = ({
       {/* Your next move */}
       <div className="mb-4 flex flex-wrap items-center justify-between gap-4 rounded-xl border bg-card p-4">
         <div className="min-w-[240px] flex-1">
-          <p className="text-xs font-semibold uppercase tracking-wide text-primary">Your next move</p>
-          <p className="mt-1 font-heading text-base font-bold">{moveTitle}</p>
-          <p className="mt-1 text-sm text-muted-foreground">{moveBody}</p>
+          <p className="text-xs font-semibold uppercase tracking-wide text-primary">
+            {locked ? "Not yet unlocked" : "Your next move"}
+          </p>
+          <p className="mt-1 font-heading text-base font-bold">
+            {locked ? "Finish the earlier units first" : moveTitle}
+          </p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {locked
+              ? (unlockHint ?? `Reach ${READINESS_THRESHOLD}% mastery in the earlier units to unlock this one.`)
+              : moveBody}
+          </p>
         </div>
-        <Button size="lg" onClick={moveOnClick}>
-          {moveAction}
-          {ready && !isLastUnit && <ArrowRight className="ml-1.5 h-4 w-4" />}
-        </Button>
+        {locked ? (
+          <span className="flex items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm text-muted-foreground">
+            <Lock className="h-4 w-4" /> Locked
+          </span>
+        ) : (
+          <Button size="lg" onClick={moveOnClick}>
+            {moveAction}
+            {ready && !isLastUnit && <ArrowRight className="ml-1.5 h-4 w-4" />}
+          </Button>
+        )}
       </div>
 
       {/* Three steps */}
