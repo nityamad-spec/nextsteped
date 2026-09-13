@@ -38,6 +38,10 @@ const MockInterviewLab = () => {
     );
   }
 
+  if (activeMock === "ml-depth") {
+    return <CodingMockSession config={ML_DEPTH_MOCK_CONFIG} onExit={() => setActiveMock(null)} />;
+  }
+
   const selectedMock = MOCK_INTERVIEW_TYPES.find((mock) => mock.id === activeMock);
   if (selectedMock) {
     return (
