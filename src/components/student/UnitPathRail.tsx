@@ -58,10 +58,14 @@ const UnitPathRail = ({
     return () => ro.disconnect();
   }, [days.length]);
 
+  // The student's current unit may sit outside this slice of the path (for
+  // example a later stage); then no node is marked "You're here".
+  const hasCurrent = days.includes(currentDay);
+  const anchorDay = hasCurrent ? currentDay : days[0];
   const items: ReturnType<typeof buildRail> = fitsOnOneLine
     ? days.map((day, index) => ({ kind: "unit", day, index }))
-    : buildRail({ days, currentDay, expanded });
-  const currentIndex = days.indexOf(currentDay);
+    : buildRail({ days, currentDay: anchorDay, expanded });
+  const currentIndex = days.indexOf(anchorDay);
   itemRefs.current.length = items.length;
 
   // Measure the track: it spans from the centre of the first item to the
