@@ -33,18 +33,18 @@ export const CODING_PROMPT = {
 };
 
 export const CODING_COACH_CHECKLIST: CoachItem[] = [
-  { id: "restate", label: "Restate the problem in your own words" },
-  { id: "assumptions", label: "State assumptions explicitly" },
-  { id: "brute", label: "Discuss brute force before optimizing" },
-  { id: "example", label: "Walk through an example" },
-  { id: "complexity", label: "Analyze time + space complexity" },
-  { id: "edge", label: "Ask about edge cases" },
+  { id: "restate", label: "Restate the problem and confirm input/output" },
+  { id: "assumptions", label: "Ask clarifying questions and state assumptions" },
+  { id: "brute", label: "Outline brute force, then optimize" },
+  { id: "example", label: "Walk through a concrete example" },
+  { id: "complexity", label: "Analyze time and space complexity" },
+  { id: "edge", label: "Cover edge cases and test your code" },
 ];
 
 export const CODING_REVIEW_NOTES: DemoReviewNote[] = [
-  { text: "You restated the problem clearly and stated assumptions up front." },
-  { text: "Try to discuss brute force before jumping to the heap solution — interviewers want to see the trade-off." },
-  { text: "Walk through a concrete example before writing code next time." },
+  { text: "You restated the problem and confirmed input/output before coding — keep that habit." },
+  { text: "Outline the brute force solution before jumping to the heap — interviewers want the trade-off." },
+  { text: "Leave time at the end to dry-run edge cases against your code." },
 ];
 
 /** Everything a full mock session needs — prompt, timer length, checklist, review notes. */
