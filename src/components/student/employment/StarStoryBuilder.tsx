@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ArrowRight, Lock, Sparkles, Loader2 } from "lucide-react";
+import { ArrowRight, Sparkles, Loader2 } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -64,9 +64,7 @@ const StarStoryBuilder = ({ targetRole, stories, onStoriesChange, onGoToPractice
   const [reviewing, setReviewing] = useState<StarStory | null>(null);
   const [improving, setImproving] = useState(false);
   const studentStoryCount = stories.filter(isStudentCreatedStory).length;
-  const practiceUnlocked = studentStoryCount >= 5;
 
-  
   const coverageSlots = Array.from({ length: STAR_TARGET_STORIES });
 
   const updateDraft = (patch: Partial<StarStory>) =>
@@ -233,26 +231,17 @@ const StarStoryBuilder = ({ targetRole, stories, onStoriesChange, onGoToPractice
         </CardContent>
       </Card>
 
-      <Card>
-        <CardContent className="flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0">
-            <p className="text-sm font-semibold">
-              {practiceUnlocked ? "You're ready to practice" : "Complete five STAR stories to unlock Practice"}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {studentStoryCount}/5 student-created stories saved in this session.
+      <Card className="border-primary/30 bg-primary/5">
+        <CardContent className="flex flex-wrap items-center justify-between gap-3 p-4">
+          <div>
+            <p className="text-sm font-semibold text-primary">Ready to practice?</p>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Complete at least 6 STAR stories before heading to Practice. Final goal: 10–12 stories.
             </p>
           </div>
-          <Button onClick={onGoToPractice} disabled={!practiceUnlocked} className="flex-none">
-            {practiceUnlocked ? (
-              <>
-                Go to Practice <ArrowRight className="ml-2 h-4 w-4" />
-              </>
-            ) : (
-              <>
-                <Lock className="mr-2 h-4 w-4" /> Practice locked
-              </>
-            )}
+          <Button onClick={onGoToPractice} className="flex-none">
+            Go to Practice
+            <ArrowRight className="ml-1.5 h-4 w-4" />
           </Button>
         </CardContent>
       </Card>
