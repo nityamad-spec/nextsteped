@@ -9,6 +9,7 @@ import AddCourseDialog from "@/components/AddCourseDialog";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 import { useCourseProjectLabs } from "@/hooks/useCourseProjectLabs";
 import { useCourseSoftSkills } from "@/hooks/useCourseSoftSkills";
+import { useCourseType } from "@/hooks/useCourseType";
 import { useCourseAccess } from "@/hooks/useCourseAccess";
 import CourseSuspendedNotice from "@/components/student/CourseSuspendedNotice";
 import { supabase } from "@/integrations/supabase/client";
