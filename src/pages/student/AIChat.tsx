@@ -496,6 +496,7 @@ const AIChat = () => {
     const unit = parseInt(searchParams.get("unit") || "0", 10) || 0;
     const exerciseParam = searchParams.get("exercise");
     const autoSelectExercise = shouldAutoSelectExercise(searchParams.get("freeform"));
+    const isDaily = searchParams.get("daily") === "1";
 
     const fallbackToPractice = () => {
       const topic = lessonPlan.find((w) => w.day === unit)?.topic;
