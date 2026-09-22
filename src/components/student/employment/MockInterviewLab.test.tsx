@@ -1,24 +1,25 @@
 import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import MockInterviewLab from "./MockInterviewLab";
+import { SEED_MOCK_TYPES } from "@/lib/careerReadinessContent";
 
 afterEach(cleanup);
 
 describe("MockInterviewLab overview", () => {
   it("shows the total completed count out of 40 and per-type progress", () => {
-    render(<MockInterviewLab />);
+    render(<MockInterviewLab mockTypes={SEED_MOCK_TYPES} />);
 
     expect(screen.getByText("Total completed")).toBeInTheDocument();
     expect(screen.getByText("/40")).toBeInTheDocument();
     expect(screen.getAllByText("1/8").length).toBeGreaterThan(0);
     expect(screen.getAllByText("0/8").length).toBeGreaterThan(0);
     expect(
-      screen.getByText(/Aim for 8–10 mocks on each interview type before onsites/i)
+      screen.getByText(/Hit the target on each interview type before onsites/i)
     ).toBeInTheDocument();
   });
 
   it("returns to the mock lab from a ready screen", () => {
-    render(<MockInterviewLab />);
+    render(<MockInterviewLab mockTypes={SEED_MOCK_TYPES} />);
     fireEvent.click(screen.getByRole("button", { name: /^Start Behavioural/ }));
     fireEvent.click(screen.getByRole("button", { name: "Back" }));
 
@@ -28,7 +29,7 @@ describe("MockInterviewLab overview", () => {
 
 describe("MockInterviewLab behavioural session", () => {
   it("starts the live behavioural screen with tailored prompt and checklist", () => {
-    render(<MockInterviewLab />);
+    render(<MockInterviewLab mockTypes={SEED_MOCK_TYPES} />);
     fireEvent.click(screen.getByRole("button", { name: /^Start Behavioural/ }));
     fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
 
@@ -46,7 +47,7 @@ describe("MockInterviewLab behavioural session", () => {
 
 describe("MockInterviewLab agent design session", () => {
   it("starts the live agent design screen with tailored prompt and checklist", () => {
-    render(<MockInterviewLab />);
+    render(<MockInterviewLab mockTypes={SEED_MOCK_TYPES} />);
     fireEvent.click(screen.getByRole("button", { name: /^Start Agent Design/ }));
     fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
 
@@ -64,7 +65,7 @@ describe("MockInterviewLab agent design session", () => {
 
 describe("MockInterviewLab ML depth session", () => {
   it("starts the live ML depth screen with tailored prompt and checklist", () => {
-    render(<MockInterviewLab />);
+    render(<MockInterviewLab mockTypes={SEED_MOCK_TYPES} />);
     fireEvent.click(screen.getByRole("button", { name: /^Start ML Depth/ }));
     expect(screen.getByText("ML Depth mock · 45 min")).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
@@ -83,21 +84,21 @@ describe("MockInterviewLab ML depth session", () => {
 
 describe("MockInterviewLab system design session", () => {
   it("opens the system design ready screen with an enabled Start timer", () => {
-    render(<MockInterviewLab />);
+    render(<MockInterviewLab mockTypes={SEED_MOCK_TYPES} />);
 
     fireEvent.click(screen.getByRole("button", { name: /^Start System Design/ }));
 
-    expect(screen.getByText("System design mock · 60 min")).toBeInTheDocument();
+    expect(screen.getByText("System Design mock · 60 min")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Ready?" })).toBeInTheDocument();
     expect(screen.getByRole("button", { name: "Start timer" })).toBeEnabled();
   });
 
   it("starts the live system design screen with tailored prompt and checklist", () => {
-    render(<MockInterviewLab />);
+    render(<MockInterviewLab mockTypes={SEED_MOCK_TYPES} />);
     fireEvent.click(screen.getByRole("button", { name: /^Start System Design/ }));
     fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
 
-    expect(screen.getByText("System design · Live")).toBeInTheDocument();
+    expect(screen.getByText("System Design · Live")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", {
         name: /Design Swiggy's real-time delivery ETA system/i,
@@ -110,12 +111,12 @@ describe("MockInterviewLab system design session", () => {
   });
 
   it("ends the session on the review screen and returns to the lab", () => {
-    render(<MockInterviewLab />);
+    render(<MockInterviewLab mockTypes={SEED_MOCK_TYPES} />);
     fireEvent.click(screen.getByRole("button", { name: /^Start System Design/ }));
     fireEvent.click(screen.getByRole("button", { name: "Start timer" }));
     fireEvent.click(screen.getByRole("button", { name: "End & review" }));
 
-    expect(screen.getByText("System design mock · Review")).toBeInTheDocument();
+    expect(screen.getByText("System Design mock · Review")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Session complete" })
     ).toBeInTheDocument();
