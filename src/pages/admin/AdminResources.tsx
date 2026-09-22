@@ -18,6 +18,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import CompMatrixAdmin from "@/components/admin/CompMatrixAdmin";
 import {
   Dialog,
   DialogContent,
@@ -402,7 +403,14 @@ const AdminResources = () => {
           <TabsTrigger value="compensation" className="gap-2">
             <IndianRupee className="h-4 w-4" /> Compensation ({compensation.length})
           </TabsTrigger>
+          <TabsTrigger value="matrix" className="gap-2">
+            <IndianRupee className="h-4 w-4" /> Salary matrix
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="matrix">
+          <CompMatrixAdmin />
+        </TabsContent>
 
         <TabsContent value="companies" className="space-y-3 pt-4">
           <div className="flex justify-end">
