@@ -60,6 +60,9 @@ interface CodingTerminalWidgetProps {
     courseId: string;
     studentId: string;
     testCases: CodingTestCase[];
+    /** "daily" = Daily DSA bank: attempts recorded in daily_dsa_attempts, and a
+     *  passing attempt is what marks the question solved (no progress row). */
+    bank?: "daily";
     onSolved?: () => void;
   } | null;
 }
@@ -123,10 +126,9 @@ export default function CodingTerminalWidget({
       const allPassed = passedCount === results.length && results.length > 0;
       setSolved(allPassed);
 
-      const { error: attemptError } = await supabase.from("coding_attempts").insert({
+      const attemptPayload = {
         student_id: submission.studentId,
         course_id: submission.courseId,
-        exercise_id: submission.exerciseId,
         submitted_code: code,
         language: languageId,
         passed: allPassed,
@@ -137,22 +139,34 @@ export default function CodingTerminalWidget({
           passed: r.passed,
           status: r.status,
         })) as any,
-      });
+      };
+      const { error: attemptError } =
+        submission.bank === "daily"
+          ? await supabase
+              .from("daily_dsa_attempts")
+              .insert({ ...attemptPayload, question_id: submission.exerciseId })
+          : await supabase
+              .from("coding_attempts")
+              .insert({ ...attemptPayload, exercise_id: submission.exerciseId });
       if (attemptError) console.error("[terminal] attempt log failed", attemptError);
 
       if (allPassed) {
-        const { error: progressError } = await supabase
-          .from("coding_exercise_progress")
-          .upsert(
-            {
-              student_id: submission.studentId,
-              exercise_id: submission.exerciseId,
-              course_id: submission.courseId,
-              source: "daily_pass",
-            },
-            { onConflict: "student_id,exercise_id", ignoreDuplicates: true },
-          );
-        if (progressError) console.error("[terminal] progress log failed", progressError);
+        // Daily-bank questions are marked solved by the passing attempt itself;
+        // weekly exercises still record a progress row.
+        if (submission.bank !== "daily") {
+          const { error: progressError } = await supabase
+            .from("coding_exercise_progress")
+            .upsert(
+              {
+                student_id: submission.studentId,
+                exercise_id: submission.exerciseId,
+                course_id: submission.courseId,
+                source: "daily_pass",
+              },
+              { onConflict: "student_id,exercise_id", ignoreDuplicates: true },
+            );
+          if (progressError) console.error("[terminal] progress log failed", progressError);
+        }
         submission.onSolved?.();
         toast({
           title: "Solved!",
