@@ -485,6 +485,73 @@ export type Database = {
           },
         ]
       }
+      coding_attempts: {
+        Row: {
+          cases_passed: number
+          cases_total: number
+          course_id: string
+          created_at: string
+          exercise_id: string
+          id: string
+          language: string | null
+          passed: boolean
+          results: Json
+          source: string
+          student_id: string
+          submitted_code: string
+        }
+        Insert: {
+          cases_passed?: number
+          cases_total?: number
+          course_id: string
+          created_at?: string
+          exercise_id: string
+          id?: string
+          language?: string | null
+          passed?: boolean
+          results?: Json
+          source?: string
+          student_id: string
+          submitted_code?: string
+        }
+        Update: {
+          cases_passed?: number
+          cases_total?: number
+          course_id?: string
+          created_at?: string
+          exercise_id?: string
+          id?: string
+          language?: string | null
+          passed?: boolean
+          results?: Json
+          source?: string
+          student_id?: string
+          submitted_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "coding_attempts_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coding_attempts_exercise_id_fkey"
+            columns: ["exercise_id"]
+            isOneToOne: false
+            referencedRelation: "coding_exercises"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "coding_attempts_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       coding_exercise_private: {
         Row: {
           created_at: string

@@ -43,6 +43,13 @@
       "when": 1790044427967,
       "tag": "0005_create_star_stories",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1790044988802,
+      "tag": "0006_create_coding_attempts",
+      "breakpoints": true
     }
   ]
 }
