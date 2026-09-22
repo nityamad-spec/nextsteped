@@ -25,6 +25,7 @@ import { useUnitReadiness, READINESS_THRESHOLD } from "@/hooks/useUnitReadiness"
 import { useUnitProgress } from "@/hooks/useUnitProgress";
 import { computeUnitStage, normaliseConcept } from "@/lib/unitStage";
 import { useCourseType } from "@/hooks/useCourseType";
+import { useCodingAccess } from "@/hooks/useCodingAccess";
 import EmploymentPathwayHeader from "@/components/student/employment/EmploymentPathwayHeader";
 import DailyDsaCard from "@/components/student/employment/DailyDsaCard";
 import MatchedOpeningsSection from "@/components/student/employment/MatchedOpeningsSection";
@@ -104,6 +105,9 @@ const StudentHome = () => {
   const [availableQuizDays, setAvailableQuizDays] = useState<Set<number>>(new Set());
   // Employment-pathway courses get an extra home layout (role, daily DSA, openings).
   const { isEmployment } = useCourseType(enrolledCourseId);
+  const { isApproved: codingApproved } = useCodingAccess(enrolledCourseId);
+  // Units already revealed by the course calendar — today's problem prefers these.
+  const unlockedWeeks = lessonPlan.filter((w: any) => !w.locked).map((w: any) => Number(w.day));
   const [targetRole, setTargetRole] = useState<string | null>(null);
 
   useEffect(() => {
@@ -771,7 +775,12 @@ const StudentHome = () => {
               trackLabel={`${targetRole?.trim() || courseName || "Employment"} Track · toward job-ready`}
               progress={courseMastery}
             />
-            <DailyDsaCard />
+            <DailyDsaCard
+              courseId={enrolledCourseId}
+              codingApproved={codingApproved}
+              unlockedWeeks={unlockedWeeks}
+            />
+
           </div>
           <div className="-mx-6 mb-6 bg-openings-band px-6 py-6">
             <MatchedOpeningsSection />

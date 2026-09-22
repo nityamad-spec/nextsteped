@@ -38,7 +38,7 @@ import "katex/dist/katex.min.css";
 import PracticeQuestions, { PracticeQuestion } from "@/components/PracticeQuestions";
 import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 import CodingTerminalWidget from "@/components/CodingTerminalWidget";
-import { fetchPublishedExercises, selectTerminalExercise, shouldAutoSelectExercise, type PublishedCodingExercise } from "@/lib/codingExercises";
+import { fetchPublishedExercises, selectTerminalExercise, shouldAutoSelectExercise, type PublishedCodingExercise, type CodingTestCase } from "@/lib/codingExercises";
 import MermaidDiagram from "@/components/MermaidDiagram";
 
 const markdownComponents = {
@@ -246,6 +246,13 @@ const AIChat = () => {
     initialLanguage?: string | null;
     exerciseTitle?: string | null;
     exerciseStatement?: string | null;
+  } | null>(null);
+  // Graded Daily DSA submission target (null for ungraded terminals).
+  const [terminalSubmission, setTerminalSubmission] = useState<{
+    exerciseId: string;
+    courseId: string;
+    studentId: string;
+    testCases: CodingTestCase[];
   } | null>(null);
   // Freeform-practice assistant: unit the terminal was opened for, a prior
   // terminal-help session to resume, and saved terminal-help sessions.
@@ -496,6 +503,7 @@ const AIChat = () => {
     const unit = parseInt(searchParams.get("unit") || "0", 10) || 0;
     const exerciseParam = searchParams.get("exercise");
     const autoSelectExercise = shouldAutoSelectExercise(searchParams.get("freeform"));
+    const isDaily = searchParams.get("daily") === "1";
 
     const fallbackToPractice = () => {
       const topic = lessonPlan.find((w) => w.day === unit)?.topic;
@@ -528,6 +536,18 @@ const AIChat = () => {
         exerciseTitle: exercise?.title ?? null,
         exerciseStatement: exercise?.problem_statement ?? null,
       });
+      // Daily DSA opens a graded terminal: the student submits against the
+      // exercise's visible test cases, and only a full pass marks it solved.
+      setTerminalSubmission(
+        isDaily && exercise && exercise.standard_test_cases.length > 0
+          ? {
+              exerciseId: exercise.id,
+              courseId: enrolledCourseId,
+              studentId: user.id,
+              testCases: exercise.standard_test_cases,
+            }
+          : null,
+      );
       setTerminalUnit(unit > 0 ? unit : null);
       setTerminalResumeSessionId(null);
       setShowTerminal(true);
@@ -543,10 +563,9 @@ const AIChat = () => {
         });
         if (error) console.error("[AIChat] terminal session log failed", error);
       }
-      // Per-exercise completion signal: opening the terminal for a specific
-      // exercise marks it done. `source` leaves room for run-based completion
-      // once code execution lands.
-      if (exercise) {
+      // Learning-path exercises still count as done on open. Daily DSA does
+      // not — it is marked solved only when every test case passes.
+      if (exercise && !isDaily) {
         const { error: progressError } = await supabase
           .from("coding_exercise_progress")
           .upsert(
@@ -1474,6 +1493,7 @@ const AIChat = () => {
           setTerminalContext(null);
           setTerminalUnit(null);
           setTerminalResumeSessionId(null);
+          setTerminalSubmission(null);
         }}
         initialCode={terminalContext?.initialCode}
         initialLanguage={terminalContext?.initialLanguage}
@@ -1484,6 +1504,7 @@ const AIChat = () => {
         assistantSessionId={terminalResumeSessionId}
         unitLabel={terminalUnit ? `Unit ${terminalUnit}` : null}
         concepts={unitConcepts}
+        submission={terminalSubmission}
       />
     );
   }
@@ -1640,6 +1661,7 @@ const AIChat = () => {
                               setTerminalResumeSessionId(s.id);
                               setTerminalContext(null);
                               setTerminalUnit(null);
+                              setTerminalSubmission(null);
                               setShowTerminal(true);
                               setShowHistory(false);
                               setAssessmentActive(false);
@@ -1720,7 +1742,7 @@ const AIChat = () => {
           </div>
           {mode === "learning" && codingApproved && (
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => { setTerminalContext(null); setTerminalUnit(null); setTerminalResumeSessionId(null); setShowTerminal(true); }}>
+              <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => { setTerminalContext(null); setTerminalUnit(null); setTerminalResumeSessionId(null); setTerminalSubmission(null); setShowTerminal(true); }}>
                 <Terminal className="h-4 w-4" /> <span className="hidden sm:inline">Code</span>
               </Button>
             </div>
