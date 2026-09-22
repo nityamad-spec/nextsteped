@@ -254,6 +254,8 @@ const AIChat = () => {
     courseId: string;
     studentId: string;
     testCases: CodingTestCase[];
+    /** "daily" = professor-built Daily DSA bank (daily_dsa_questions/attempts). */
+    bank?: "daily";
   } | null>(null);
   // Freeform-practice assistant: unit the terminal was opened for, a prior
   // terminal-help session to resume, and saved terminal-help sessions.
