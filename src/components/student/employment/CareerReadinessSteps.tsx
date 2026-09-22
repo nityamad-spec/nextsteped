@@ -28,7 +28,7 @@ interface Props {
  * Understand shows a static role briefing; Prepare/Practice list the
  * modules the professor assigned to them.
  */
-const CareerReadinessSteps = ({ modules, onStudy, targetRole, initialStep }: Props) => {
+const CareerReadinessSteps = ({ modules, onStudy, targetRole, courseId, initialStep }: Props) => {
   const byStep = useMemo(() => {
     const map: Record<CareerReadinessStep, SoftSkillsModuleView[]> = {
       understand: [],
@@ -41,7 +41,6 @@ const CareerReadinessSteps = ({ modules, onStudy, targetRole, initialStep }: Pro
 
   const firstWithContent =
     CAREER_READINESS_STEPS.find((s) => byStep[s.key].length > 0)?.key ?? "understand";
-  const [stories, setStories] = useState<StarStory[]>(DEMO_STAR_STORIES);
   const requestedInitial = initialStep && isCareerReadinessStep(initialStep) ? initialStep : firstWithContent;
   const [active, setActive] = useState<CareerReadinessStep>(requestedInitial);
   const [openModule, setOpenModule] = useState<string | null>(null);
@@ -69,8 +68,7 @@ const CareerReadinessSteps = ({ modules, onStudy, targetRole, initialStep }: Pro
       ) : active === "prepare" ? (
         <StarStoryBuilder
           targetRole={targetRole}
-          stories={stories}
-          onStoriesChange={setStories}
+          courseId={courseId ?? null}
           onGoToPractice={() => {
             setActive("practice");
             setOpenModule(null);
