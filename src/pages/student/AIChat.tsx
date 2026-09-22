@@ -256,6 +256,8 @@ const AIChat = () => {
     testCases: CodingTestCase[];
     /** "daily" = professor-built Daily DSA bank (daily_dsa_questions/attempts). */
     bank?: "daily";
+    /** Daily-bank mastery context: first full pass on a concept-tagged question nudges mastery. */
+    mastery?: { conceptId: string | null; bloomLevel?: number | null };
   } | null>(null);
   // Freeform-practice assistant: unit the terminal was opened for, a prior
   // terminal-help session to resume, and saved terminal-help sessions.
