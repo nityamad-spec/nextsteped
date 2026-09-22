@@ -1,14 +1,14 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-import { fetchPublishedExercises, type PublishedCodingExercise } from "@/lib/codingExercises";
+import { fetchPublishedDailyDsaQuestions, type PublishedDailyDsaQuestion } from "@/lib/dailyDsaQuestions";
 import { dayKey, pickDailyExercise, recentSolvedDays, solvedStreak } from "@/lib/dailyDsa";
 
 export interface DailyDsaState {
   loading: boolean;
-  /** Course has coding approved and at least one published exercise. */
+  /** Course has coding approved and at least one published daily question. */
   hasBank: boolean;
-  exercise: PublishedCodingExercise | null;
+  exercise: PublishedDailyDsaQuestion | null;
   solvedCount: number;
   totalCount: number;
   streak: number;
@@ -20,8 +20,10 @@ export interface DailyDsaState {
 }
 
 /**
- * Real Daily DSA state: today's unsolved problem from the course's published
- * exercise bank, plus the student's solved-day streak and attempt history.
+ * Real Daily DSA state: today's unsolved question from the professor-built
+ * daily-practice bank, plus the student's solved-day streak and attempt
+ * history. A question is "solved" when the student has a fully-passing
+ * submission recorded in daily_dsa_attempts.
  */
 export function useDailyDsa(
   courseId: string | null | undefined,
@@ -30,7 +32,7 @@ export function useDailyDsa(
 ): DailyDsaState {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [exercises, setExercises] = useState<PublishedCodingExercise[]>([]);
+  const [exercises, setExercises] = useState<PublishedDailyDsaQuestion[]>([]);
   const [solvedIds, setSolvedIds] = useState<Set<string>>(new Set());
   const [solvedDays, setSolvedDays] = useState<string[]>([]);
   const [attemptsToday, setAttemptsToday] = useState(0);
@@ -51,15 +53,16 @@ export function useDailyDsa(
     setLoading(true);
     (async () => {
       try {
-        const [bank, progress, attempts] = await Promise.all([
-          fetchPublishedExercises(courseId),
+        const [bank, solved, attempts] = await Promise.all([
+          fetchPublishedDailyDsaQuestions(courseId),
           supabase
-            .from("coding_exercise_progress")
-            .select("exercise_id")
+            .from("daily_dsa_attempts")
+            .select("question_id")
             .eq("student_id", user.id)
-            .eq("course_id", courseId),
+            .eq("course_id", courseId)
+            .eq("passed", true),
           supabase
-            .from("coding_attempts")
+            .from("daily_dsa_attempts")
             .select("created_at, passed")
             .eq("student_id", user.id)
             .eq("course_id", courseId)
@@ -68,7 +71,7 @@ export function useDailyDsa(
         ]);
         if (cancelled) return;
         setExercises(bank);
-        setSolvedIds(new Set((progress.data ?? []).map((r) => r.exercise_id as string)));
+        setSolvedIds(new Set((solved.data ?? []).map((r) => r.question_id as string)));
         const rows = attempts.data ?? [];
         const today = dayKey();
         setSolvedDays(
