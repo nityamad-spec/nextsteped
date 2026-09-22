@@ -247,6 +247,13 @@ const AIChat = () => {
     exerciseTitle?: string | null;
     exerciseStatement?: string | null;
   } | null>(null);
+  // Graded Daily DSA submission target (null for ungraded terminals).
+  const [terminalSubmission, setTerminalSubmission] = useState<{
+    exerciseId: string;
+    courseId: string;
+    studentId: string;
+    testCases: CodingTestCase[];
+  } | null>(null);
   // Freeform-practice assistant: unit the terminal was opened for, a prior
   // terminal-help session to resume, and saved terminal-help sessions.
   const [terminalUnit, setTerminalUnit] = useState<number | null>(null);
