@@ -50,6 +50,18 @@ interface CodingTerminalWidgetProps {
   unitLabel?: string | null;
   /** Concept names covered by this practice session (assistant context). */
   concepts?: string[];
+  /**
+   * Enables the graded submit panel: the student's code runs against the
+   * exercise's visible test cases, each attempt is recorded, and a full pass
+   * marks the exercise solved.
+   */
+  submission?: {
+    exerciseId: string;
+    courseId: string;
+    studentId: string;
+    testCases: CodingTestCase[];
+    onSolved?: () => void;
+  } | null;
 }
 
 export default function CodingTerminalWidget({
@@ -63,7 +75,9 @@ export default function CodingTerminalWidget({
   assistantSessionId,
   unitLabel,
   concepts,
+  submission,
 }: CodingTerminalWidgetProps) {
+  const { toast } = useToast();
   const initialLangId = toTerminalLanguage(initialLanguage);
   const [languageId, setLanguageId] = useState<string>(initialLangId);
   const language = useMemo(
@@ -80,12 +94,87 @@ export default function CodingTerminalWidget({
   const [isRunning, setIsRunning] = useState(false);
   const [showStatement, setShowStatement] = useState(hasExercise);
   const [showAssistant, setShowAssistant] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [testResults, setTestResults] = useState<TestRunResult[] | null>(null);
+  const [solved, setSolved] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // Latest values for the assistant's per-send context snapshot.
   const codeRef = useRef(code);
   codeRef.current = code;
   const outputRef = useRef(output);
   outputRef.current = output;
+
+  const canSubmit = !!submission && submission.testCases.length > 0;
+
+  const handleSubmit = async () => {
+    if (!submission || isSubmitting) return;
+    setIsSubmitting(true);
+    setTestResults(null);
+    const cases: TestRunCase[] = submission.testCases.map((t, i) => ({
+      kind: "standard" as const,
+      index: i + 1,
+      input: t.input ?? "",
+      expected: t.expected_output ?? "",
+    }));
+    try {
+      const results = await runCodeAgainstTestCases(languageId, code, cases);
+      setTestResults(results);
+      const passedCount = results.filter((r) => r.passed).length;
+      const allPassed = passedCount === results.length && results.length > 0;
+      setSolved(allPassed);
+
+      const { error: attemptError } = await supabase.from("coding_attempts").insert({
+        student_id: submission.studentId,
+        course_id: submission.courseId,
+        exercise_id: submission.exerciseId,
+        submitted_code: code,
+        language: languageId,
+        passed: allPassed,
+        cases_passed: passedCount,
+        cases_total: results.length,
+        results: results.map((r) => ({
+          index: r.index,
+          passed: r.passed,
+          status: r.status,
+        })) as any,
+      });
+      if (attemptError) console.error("[terminal] attempt log failed", attemptError);
+
+      if (allPassed) {
+        const { error: progressError } = await supabase
+          .from("coding_exercise_progress")
+          .upsert(
+            {
+              student_id: submission.studentId,
+              exercise_id: submission.exerciseId,
+              course_id: submission.courseId,
+              source: "daily_pass",
+            },
+            { onConflict: "student_id,exercise_id", ignoreDuplicates: true },
+          );
+        if (progressError) console.error("[terminal] progress log failed", progressError);
+        submission.onSolved?.();
+        toast({
+          title: "Solved!",
+          description: "All test cases passed — today's problem is done.",
+        });
+      } else {
+        toast({
+          title: `${passedCount} of ${results.length} test cases passed`,
+          description: "Fix the failing cases and submit again.",
+          variant: "destructive",
+        });
+      }
+    } catch (e) {
+      toast({
+        title: "Couldn't run your submission",
+        description: e instanceof Error ? e.message : "Please try again in a moment.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const handleLanguageChange = (id: string) => {
     const next = APPROVED_LANGUAGES.find((l) => l.id === id);
