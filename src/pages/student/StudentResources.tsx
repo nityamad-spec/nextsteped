@@ -20,6 +20,8 @@ import { Separator } from "@/components/ui/separator";
 import { useEnrolledCourseId } from "@/hooks/useEnrolledCourseId";
 import { useCourseType } from "@/hooks/useCourseType";
 import { useCourseResources } from "@/hooks/useCourseResources";
+import { useCompMatrix } from "@/hooks/useCompMatrix";
+import CompensationMatrix from "@/components/student/CompensationMatrix";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -52,6 +54,13 @@ const StudentResources = () => {
   const courseId = useEnrolledCourseId();
   const { ready: typeReady, isEmployment } = useCourseType(courseId);
   const { companies, compensation, links, files, loading, isEmpty } = useCourseResources(courseId);
+  const {
+    roles: compRoles,
+    tiers: compTiers,
+    cells: compCells,
+    lastRun: compLastRun,
+    loading: compLoading,
+  } = useCompMatrix();
   const [searchParams, setSearchParams] = useSearchParams();
   const [selectedCompanyId, setSelectedCompanyId] = useState<string | null>(null);
   const [tierFilter, setTierFilter] = useState<ResourceTier | "all">("all");
