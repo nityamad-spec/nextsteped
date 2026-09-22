@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import CourseCollaborators from "@/components/CourseCollaborators";
 import CourseStatusBanner from "@/components/CourseStatusBanner";
+import TargetRoleCard from "@/components/teacher/TargetRoleCard";
+import { useCourseType } from "@/hooks/useCourseType";
 
 /* ── Mastery band thresholds (mirror update-mastery / DB CHECK constraint) ── */
 function bandFor(score: number): "beginner" | "developing" | "proficient" | "expert" {
@@ -44,6 +46,7 @@ const CourseDashboard = () => {
   const { currentCourse } = useApp();
   const { user } = useAuth();
   const courseId = useTeacherCourseId();
+  const { isEmployment } = useCourseType(courseId);
   const { taSettings } = useTASettings(courseId);
   const courseSections = currentCourse?.sections || [];
   const [selectedSection, setSelectedSection] = useState<string>("all");
@@ -395,6 +398,9 @@ const CourseDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* Target role — skilling (employment) pathway only */}
+      {isEmployment && <TargetRoleCard courseId={courseId} />}
 
       {/* Course Progress */}
       <Card className="mb-6">

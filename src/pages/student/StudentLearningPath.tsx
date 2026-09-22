@@ -572,7 +572,7 @@ const StudentLearningPath = () => {
           </Card>
         ) : pathway ? (
           <PathwayStageList
-            trackLabel={targetRole || courseName || "Employment pathway"}
+            trackLabel={targetRole?.trim() || "Employment track"}
             totalHours={pathway.totalHours}
             overallPct={pathway.overallPct}
             stages={pathway.stages}
