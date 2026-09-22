@@ -6,6 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
 import { markStepCompleted } from "@/lib/setupProgress";
 import { emitWipe } from "@/lib/wipeEvents";
 import { upsertCourseMaterialFile } from "@/lib/courseMaterialFiles";
