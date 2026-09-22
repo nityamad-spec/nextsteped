@@ -464,7 +464,10 @@ const StudentLearningPath = () => {
           unitNumber={unit.day}
           topic={unit.topic}
           totalUnits={lessonPlan.length}
-          studied={!!studiedByUnit[unit.day]}
+          studied={
+            !!studiedByUnit[unit.day] ||
+            (unit.day === openUnitDay && allUnitVideosWatched)
+          }
           practised={!!practisedByUnit[unit.day]}
           quizTaken={!!taken}
           isCodingWeek={!!unit.is_coding_week}
