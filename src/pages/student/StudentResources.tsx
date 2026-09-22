@@ -227,58 +227,89 @@ const StudentResources = () => {
             <ArrowLeft className="h-4 w-4" /> All companies
           </Button>
 
-          <div className="flex items-start gap-4">
-            <span
-              className={`flex h-14 w-14 flex-none items-center justify-center rounded-xl text-xl font-bold text-white ${c.logo_color ?? "bg-primary"}`}
-            >
-              {c.name.charAt(0)}
-            </span>
-            <div className="min-w-0">
-              <div className="flex flex-wrap items-center gap-2">
-                <h1 className="font-heading text-2xl font-bold">{c.name}</h1>
-                <Badge variant="outline" className={tierBadgeClass(c.tier)}>
-                  {TIER_LABELS[c.tier]}
-                </Badge>
+          {/* Header */}
+          <Card className="overflow-hidden">
+            <div className="h-1.5 w-full bg-primary" />
+            <CardContent className="flex flex-wrap items-start justify-between gap-4 p-6">
+              <div className="flex min-w-0 items-start gap-4">
+                <span
+                  className={`flex h-14 w-14 flex-none items-center justify-center rounded-xl text-xl font-bold text-white ${c.logo_color ?? "bg-primary"}`}
+                >
+                  {c.name.charAt(0)}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h1 className="font-heading text-2xl font-bold">{c.name}</h1>
+                    <Badge variant="outline" className={tierBadgeClass(c.tier)}>
+                      {TIER_LABELS[c.tier]}
+                    </Badge>
+                    {c.pay_range && (
+                      <span className="text-sm font-semibold text-primary">{c.pay_range}</span>
+                    )}
+                  </div>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {c.roles.map((r) => (
+                      <span
+                        key={r}
+                        className="rounded-full bg-primary/10 px-2.5 py-0.5 text-[11px] font-medium text-primary"
+                      >
+                        {r}
+                      </span>
+                    ))}
+                  </div>
+                  {c.locations && (
+                    <p className="mt-2 flex items-center gap-1.5 text-sm text-muted-foreground">
+                      <MapPin className="h-3.5 w-3.5" /> {c.locations}
+                    </p>
+                  )}
+                </div>
               </div>
-              <div className="mt-1 flex flex-wrap gap-1.5">
-                {c.roles.map((r) => (
-                  <Badge key={r} variant="secondary" className="text-[10px]">
-                    {r}
-                  </Badge>
-                ))}
-              </div>
-            </div>
-          </div>
+              {c.apply_url && (
+                <Button size="sm" className="gap-2" asChild>
+                  <a href={c.apply_url} target="_blank" rel="noreferrer">
+                    Careers page <ExternalLink className="h-3.5 w-3.5" />
+                  </a>
+                </Button>
+              )}
+            </CardContent>
+          </Card>
 
-          <div className="grid gap-4 md:grid-cols-2">
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">About</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <p className="whitespace-pre-wrap text-muted-foreground">
-                  {c.description || "No description yet."}
-                </p>
-                {c.locations && (
-                  <p className="flex items-center gap-2 text-muted-foreground">
-                    <MapPin className="h-4 w-4" /> {c.locations}
-                  </p>
-                )}
-                {c.apply_url && (
-                  <Button size="sm" className="gap-2" asChild>
-                    <a href={c.apply_url} target="_blank" rel="noreferrer">
-                      Careers page <ExternalLink className="h-3.5 w-3.5" />
-                    </a>
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
+          {/* About */}
+          <Card>
+            <CardHeader className="pb-3">
+              <CardTitle className="text-base">About {c.name}</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-3 text-sm">
+              <p className="whitespace-pre-wrap leading-relaxed text-muted-foreground">
+                {c.about || c.description || "No description yet."}
+              </p>
+              {c.focus_areas && (
+                <div className="flex flex-wrap gap-1.5 pt-1">
+                  {c.focus_areas.split(",").map((f) => (
+                    <span
+                      key={f}
+                      className="rounded-md border bg-muted/40 px-2 py-0.5 text-[11px] text-muted-foreground"
+                    >
+                      {f.trim()}
+                    </span>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
+          {/* Interview format */}
+          {(c.interview_format || c.dsa_difficulty !== null) && (
             <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Interview</CardTitle>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Interview format</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4 text-sm">
+                {c.interview_format && (
+                  <p className="rounded-lg border bg-muted/30 p-3 leading-relaxed">
+                    {c.interview_format}
+                  </p>
+                )}
                 {c.dsa_difficulty !== null && (
                   <div className="flex items-center justify-between rounded-lg border p-3">
                     <span className="font-medium">DSA difficulty</span>
@@ -290,29 +321,61 @@ const StudentResources = () => {
                     </span>
                   </div>
                 )}
-                {c.interview_format && (
-                  <div>
-                    <p className="font-medium">Typical interview pattern</p>
-                    <p className="mt-0.5 text-muted-foreground">{c.interview_format}</p>
-                  </div>
-                )}
-                {c.focus_areas && (
-                  <div>
-                    <p className="font-medium">What they focus on</p>
-                    <p className="mt-0.5 text-muted-foreground">{c.focus_areas}</p>
-                  </div>
-                )}
-                {c.pay_range && (
-                  <div className="flex items-center justify-between rounded-lg border p-3">
-                    <span className="font-medium">Pay range</span>
-                    <span className="font-semibold">{c.pay_range}</span>
-                  </div>
-                )}
               </CardContent>
             </Card>
-          </div>
+          )}
+
+          {/* Rounds */}
+          {c.rounds.length > 0 && (
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">The rounds you'll face</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <ol className="space-y-3">
+                  {c.rounds.map((r, i) => (
+                    <li key={i} className="flex gap-3 rounded-lg border bg-card p-3">
+                      <span
+                        className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-xs font-bold text-primary-foreground"
+                        style={{ backgroundColor: `hsl(var(--primary) / ${1 - i * 0.15})` }}
+                      >
+                        {i + 1}
+                      </span>
+                      <span className="pt-0.5 text-sm leading-relaxed">{r}</span>
+                    </li>
+                  ))}
+                </ol>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* What they look for */}
+          {c.look_for && (
+            <Card className="border-primary/25 bg-primary/[0.04]">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">What they look for</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-wrap text-sm leading-relaxed text-muted-foreground">
+                  {c.look_for}
+                </p>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Pro tip */}
+          {c.pro_tip && (
+            <div className="rounded-xl border border-accent/40 bg-accent/10 p-4">
+              <p className="text-sm font-semibold text-accent-foreground">Pro tip</p>
+              <p className="mt-1 text-sm leading-relaxed">{c.pro_tip}</p>
+            </div>
+          )}
 
           {renderAttachments(c.id)}
+
+          {c.sources && (
+            <p className="text-xs text-muted-foreground">Sources: {c.sources}</p>
+          )}
         </div>
       );
     }
@@ -349,7 +412,7 @@ const StudentResources = () => {
               <button
                 key={c.id}
                 onClick={() => setSelectedCompanyId(c.id)}
-                className="group rounded-xl bg-foreground p-5 text-left text-background transition-transform hover:-translate-y-0.5"
+                className="group flex flex-col rounded-xl border bg-card p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
               >
                 <div className="flex items-start justify-between">
                   <span
@@ -362,17 +425,23 @@ const StudentResources = () => {
                   </Badge>
                 </div>
                 <p className="mt-3 font-semibold">{c.name}</p>
-                {c.pay_range && <p className="mt-0.5 text-sm opacity-80">{c.pay_range}</p>}
-                <div className="mt-2 flex flex-wrap gap-1.5">
+                {c.pay_range && (
+                  <p className="mt-0.5 text-sm font-medium text-primary">{c.pay_range}</p>
+                )}
+                <div className="mt-3 flex flex-wrap gap-1.5">
                   {c.roles.slice(0, 4).map((r) => (
                     <span
                       key={r}
-                      className="rounded-full border border-background/25 px-2 py-0.5 text-[10px] uppercase tracking-wide opacity-80"
+                      className="rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium uppercase tracking-wide text-muted-foreground"
                     >
                       {r}
                     </span>
                   ))}
                 </div>
+                <span className="mt-4 flex items-center gap-1 text-xs font-medium text-primary">
+                  View interview guide
+                  <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
+                </span>
               </button>
             ))}
           </div>
