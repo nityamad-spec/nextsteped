@@ -35,6 +35,17 @@ import {
   type ResourceTier,
 } from "@/lib/courseResources";
 
+const ROUND_STYLES = [
+  "border-career-round-1-border bg-career-round-1 text-career-round-1-foreground",
+  "border-career-round-2-border bg-career-round-2 text-career-round-2-foreground",
+  "border-career-round-3-border bg-career-round-3 text-career-round-3-foreground",
+  "border-career-round-4-border bg-career-round-4 text-career-round-4-foreground",
+] as const;
+
+function roundStyle(index: number): string {
+  return ROUND_STYLES[Math.min(index, ROUND_STYLES.length - 1)];
+}
+
 /** Half-star rating row for the 1–4 DSA difficulty scale. */
 function DifficultyStars({ value }: { value: number }) {
   const full = Math.floor(value);
@@ -232,9 +243,7 @@ const StudentResources = () => {
             <div className="h-1.5 w-full bg-primary" />
             <CardContent className="flex flex-wrap items-start justify-between gap-4 p-6">
               <div className="flex min-w-0 items-start gap-4">
-                <span
-                  className={`flex h-14 w-14 flex-none items-center justify-center rounded-xl text-xl font-bold text-white ${c.logo_color ?? "bg-primary"}`}
-                >
+                <span className="flex h-14 w-14 flex-none items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-xl font-bold text-primary">
                   {c.name.charAt(0)}
                 </span>
                 <div className="min-w-0">
@@ -332,16 +341,15 @@ const StudentResources = () => {
                 <CardTitle className="text-base">The rounds you'll face</CardTitle>
               </CardHeader>
               <CardContent>
-                <ol className="space-y-3">
+                <ol className="space-y-4">
                   {c.rounds.map((r, i) => (
-                    <li key={i} className="flex gap-3 rounded-lg border bg-card p-3">
+                    <li key={i} className={`flex gap-4 rounded-lg border p-4 ${roundStyle(i)}`}>
                       <span
-                        className="flex h-7 w-7 flex-none items-center justify-center rounded-full text-xs font-bold text-primary-foreground"
-                        style={{ backgroundColor: `hsl(var(--primary) / ${1 - i * 0.15})` }}
+                        className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-current/20 bg-card/75 text-xs font-bold"
                       >
                         {i + 1}
                       </span>
-                      <span className="pt-0.5 text-sm leading-relaxed">{r}</span>
+                      <span className="pt-1 text-sm leading-relaxed">{r}</span>
                     </li>
                   ))}
                 </ol>
@@ -365,9 +373,9 @@ const StudentResources = () => {
 
           {/* Pro tip */}
           {c.pro_tip && (
-            <div className="rounded-xl border border-accent/40 bg-accent/10 p-4">
-              <p className="text-sm font-semibold text-accent-foreground">Pro tip</p>
-              <p className="mt-1 text-sm leading-relaxed">{c.pro_tip}</p>
+            <div className="rounded-lg border border-accent/40 bg-accent/10 p-5 text-foreground">
+              <p className="text-sm font-semibold">Pro tip</p>
+              <p className="mt-1.5 text-sm leading-relaxed text-foreground/90">{c.pro_tip}</p>
             </div>
           )}
 
@@ -407,28 +415,26 @@ const StudentResources = () => {
         {filtered.length === 0 ? (
           <p className="text-sm text-muted-foreground">No companies in this tier yet.</p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {filtered.map((c) => (
               <button
                 key={c.id}
                 onClick={() => setSelectedCompanyId(c.id)}
-                className="group flex flex-col rounded-xl border bg-card p-5 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
+                className="group flex min-h-64 flex-col rounded-lg border bg-card p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
               >
-                <div className="flex items-start justify-between">
-                  <span
-                    className={`flex h-10 w-10 items-center justify-center rounded-lg text-lg font-bold text-white ${c.logo_color ?? "bg-primary"}`}
-                  >
+                <div className="flex min-h-12 items-start justify-between gap-6">
+                  <span className="flex h-12 w-12 flex-none items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-lg font-bold text-primary">
                     {c.name.charAt(0)}
                   </span>
-                  <Badge variant="outline" className={tierBadgeClass(c.tier)}>
+                  <Badge variant="outline" className={`mt-1 flex-none ${tierBadgeClass(c.tier)}`}>
                     {TIER_LABELS[c.tier]}
                   </Badge>
                 </div>
-                <p className="mt-3 font-semibold">{c.name}</p>
+                <p className="mt-5 font-semibold">{c.name}</p>
                 {c.pay_range && (
-                  <p className="mt-0.5 text-sm font-medium text-primary">{c.pay_range}</p>
+                  <p className="mt-1 text-sm font-medium text-primary">{c.pay_range}</p>
                 )}
-                <div className="mt-3 flex flex-wrap gap-1.5">
+                <div className="mt-4 flex flex-wrap gap-2">
                   {c.roles.slice(0, 4).map((r) => (
                     <span
                       key={r}
@@ -438,7 +444,7 @@ const StudentResources = () => {
                     </span>
                   ))}
                 </div>
-                <span className="mt-4 flex items-center gap-1 text-xs font-medium text-primary">
+                <span className="mt-auto flex items-center gap-1 pt-5 text-xs font-medium text-primary">
                   View interview guide
                   <ArrowRight className="h-3 w-3 transition-transform group-hover:translate-x-0.5" />
                 </span>
