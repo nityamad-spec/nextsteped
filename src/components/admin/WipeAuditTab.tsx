@@ -114,7 +114,7 @@ const WipeAuditTab = () => {
   };
 
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); void loadGates(); }, []);
 
   const runDryRun = async () => {
     if (!drCourseId || !drPath) {
