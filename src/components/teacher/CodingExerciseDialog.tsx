@@ -63,6 +63,12 @@ interface CodingExerciseDialogProps {
   reviewIds?: string[];
   reviewIndex?: number;
   onReviewNavigate?: (index: number) => void;
+  /**
+   * Persistence overrides for banks other than `coding_exercises` (e.g. the
+   * Daily DSA bank). Default to the coding_exercises-backed helpers.
+   */
+  saveDraft?: (id: string, draft: ExerciseDraft, opts?: { markReviewed?: boolean }) => Promise<void>;
+  validateDraft?: (id: string, onProgress: (p: ValidationProgress) => void) => Promise<ValidationReport>;
 }
 
 const emptyDraft: ExerciseDraft = {
