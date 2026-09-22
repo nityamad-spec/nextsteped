@@ -63,6 +63,12 @@ interface CodingTerminalWidgetProps {
     /** "daily" = Daily DSA bank: attempts recorded in daily_dsa_attempts, and a
      *  passing attempt is what marks the question solved (no progress row). */
     bank?: "daily";
+    /**
+     * Daily-bank mastery context: a first full pass on a concept-tagged
+     * question nudges mastery at practice strength. Pass through from the
+     * question row; omitted/untagged questions are mastery-neutral.
+     */
+    mastery?: { conceptId: string | null; bloomLevel?: number | null };
     onSolved?: () => void;
   } | null;
 }
@@ -166,6 +172,37 @@ export default function CodingTerminalWidget({
               { onConflict: "student_id,exercise_id", ignoreDuplicates: true },
             );
           if (progressError) console.error("[terminal] progress log failed", progressError);
+        } else if (submission.mastery?.conceptId) {
+          // Concept-tagged daily question: first full pass nudges mastery at
+          // practice strength (the update-mastery function caps practice
+          // evidence at Proficient). Re-solves never re-nudge.
+          try {
+            const { count: priorPasses } = await supabase
+              .from("daily_dsa_attempts")
+              .select("id", { count: "exact", head: true })
+              .eq("question_id", submission.exerciseId)
+              .eq("student_id", submission.studentId)
+              .eq("passed", true);
+            if ((priorPasses ?? 0) <= 1) {
+              const { error: masteryError } = await supabase.functions.invoke("update-mastery", {
+                body: {
+                  course_id: submission.courseId,
+                  source: "practice",
+                  per_question: [
+                    {
+                      concept_id: submission.mastery.conceptId,
+                      difficulty: 0.5,
+                      bloom: submission.mastery.bloomLevel ?? 3,
+                      is_correct: true,
+                    },
+                  ],
+                },
+              });
+              if (masteryError) console.error("[terminal] mastery update failed", masteryError);
+            }
+          } catch (e) {
+            console.error("[terminal] mastery update failed", e);
+          }
         }
         submission.onSolved?.();
         toast({

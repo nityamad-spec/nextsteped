@@ -69,6 +69,15 @@ interface CodingExerciseDialogProps {
    */
   saveDraft?: (id: string, draft: ExerciseDraft, opts?: { markReviewed?: boolean }) => Promise<void>;
   validateDraft?: (id: string, onProgress: (p: ValidationProgress) => void) => Promise<ValidationReport>;
+  /**
+   * Optional concept tag control (e.g. the Daily DSA bank, where tags drive
+   * mastery credit). Rendered under the title row; independent of Save.
+   */
+  conceptPicker?: {
+    options: { id: string; label: string }[];
+    value: string | null;
+    onChange: (conceptId: string | null) => void;
+  };
 }
 
 const emptyDraft: ExerciseDraft = {
@@ -95,6 +104,7 @@ const CodingExerciseDialog = ({
   onReviewNavigate,
   saveDraft = updateExercise,
   validateDraft = runExerciseValidation,
+  conceptPicker,
 }: CodingExerciseDialogProps) => {
   const { toast } = useToast();
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft);
@@ -378,6 +388,32 @@ const CodingExerciseDialog = ({
               </Select>
             </div>
           </div>
+
+          {conceptPicker && (
+            <div className="space-y-1.5">
+              <Label>Concept tag (optional)</Label>
+              <p className="text-xs text-muted-foreground">
+                Solving this question nudges the student's mastery of the tagged concept.
+                Without a tag the question is mastery-neutral.
+              </p>
+              <Select
+                value={conceptPicker.value ?? "__none__"}
+                onValueChange={(v) => conceptPicker.onChange(v === "__none__" ? null : v)}
+              >
+                <SelectTrigger aria-label="Concept tag">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">No concept (mastery-neutral)</SelectItem>
+                  {conceptPicker.options.map((c) => (
+                    <SelectItem key={c.id} value={c.id}>
+                      {c.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-1.5">
             <Label htmlFor="ce-problem">Problem statement</Label>

@@ -78,6 +78,8 @@ interface GeneratedQuestion {
   hidden_test_cases: TestCase[];
   bloom_level: number;
   bloom_justification: string | null;
+  /** One of the week's concept codes; resolved to concepts.id on save. */
+  concept_code: string | null;
 }
 
 function asStr(v: unknown): string {
@@ -150,6 +152,7 @@ function validateQuestion(raw: any): { ok: boolean; issues: string[]; value?: Ge
       hidden_test_cases: hidden,
       bloom_level,
       bloom_justification,
+      concept_code: asStr(raw.concept_code) || null,
     },
   };
 }
@@ -203,6 +206,10 @@ const EXERCISE_SCHEMA = {
     },
     bloom_level: { type: "integer" },
     bloom_justification: { type: "string" },
+    concept_code: {
+      type: "string",
+      description: "The single concept from the provided concept list this question most directly tests, copied exactly.",
+    },
   },
   required: [
     "title",
@@ -217,6 +224,7 @@ const EXERCISE_SCHEMA = {
     "hidden_test_cases",
     "bloom_level",
     "bloom_justification",
+    "concept_code",
   ],
   additionalProperties: false,
 } as const;
@@ -250,6 +258,7 @@ Required content per question:
 - hidden_test_cases: 2–4 EDGE cases (empty input, boundaries, large values, tricky formatting), each {input, expected_output}.
 - bloom_level: integer 1-6 for the cognitive demand of the TASK (1=Remember, 2=Understand, 3=Apply, 4=Analyze, 5=Evaluate, 6=Create). Most coding exercises are 3-4; only assign 5-6 when the student must design, evaluate trade-offs, or create a non-obvious solution.
 - bloom_justification: one sentence (<= 200 chars) explaining the level you chose.
+- concept_code: the ONE concept from the provided concept list this question most directly tests. Copy it exactly as listed.
 
 CRITICAL correctness rule: derive every expected_output by mentally executing your own reference_solution on that input. The expected outputs MUST be exactly what your solution prints/returns.`;
 
@@ -535,6 +544,16 @@ async function run(
     .eq("course_id", courseId);
   const avoidTitles = (existing ?? []).map((r: any) => asStr(r.title)).filter(Boolean);
 
+  // Concept code → id map so generated questions can be tagged for mastery.
+  const { data: conceptRows } = await admin
+    .from("concepts")
+    .select("id, concept_code")
+    .eq("course_id", courseId);
+  const conceptIdByCode = new Map<string, string>();
+  for (const c of conceptRows ?? []) {
+    conceptIdByCode.set(asStr((c as any).concept_code).toLowerCase(), String((c as any).id));
+  }
+
   // ─── Generate week by week so progress is meaningful ───
   const allPublicRows: any[] = [];
   const allPrivateDrafts: GeneratedQuestion[] = [];
@@ -591,6 +610,9 @@ async function run(
         standard_test_cases: q.standard_test_cases,
         bloom_level: q.bloom_level,
         bloom_justification: q.bloom_justification,
+        concept_id: q.concept_code
+          ? (conceptIdByCode.get(q.concept_code.toLowerCase()) ?? null)
+          : null,
         published: false,
         teacher_id: userId,
       });

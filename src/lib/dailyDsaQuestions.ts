@@ -53,7 +53,7 @@ export async function fetchPublishedDailyDsaQuestions(
   const { data, error } = await supabase
     .from("daily_dsa_questions")
     .select(
-      "id, week_number, position, title, problem_statement, language, input_spec, output_spec, constraints, examples, starter_code, primary_language, standard_test_cases",
+      "id, week_number, position, title, problem_statement, language, input_spec, output_spec, constraints, examples, starter_code, primary_language, standard_test_cases, concept_id, bloom_level",
     )
     .eq("course_id", courseId)
     .eq("published", true)
@@ -107,6 +107,18 @@ export async function markDailyDsaQuestionReviewed(id: string): Promise<void> {
   const { error } = await supabase
     .from("daily_dsa_questions")
     .update({ reviewed_at: new Date().toISOString() })
+    .eq("id", id);
+  if (error) throw error;
+}
+
+/** Sets (or clears) the concept tag used for mastery credit. */
+export async function setDailyDsaQuestionConcept(
+  id: string,
+  conceptId: string | null,
+): Promise<void> {
+  const { error } = await supabase
+    .from("daily_dsa_questions")
+    .update({ concept_id: conceptId })
     .eq("id", id);
   if (error) throw error;
 }

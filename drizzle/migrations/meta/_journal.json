@@ -57,6 +57,13 @@
       "when": 1790045741556,
       "tag": "0007_create_daily_dsa_bank",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1790046295245,
+      "tag": "0008_daily_dsa_concept_tag",
+      "breakpoints": true
     }
   ]
 }
