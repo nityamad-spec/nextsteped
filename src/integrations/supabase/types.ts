@@ -1366,6 +1366,56 @@ export type Database = {
           },
         ]
       }
+      course_week_videos: {
+        Row: {
+          course_id: string
+          created_at: string
+          duration_seconds: number | null
+          id: string
+          kind: string
+          position: number
+          storage_path: string | null
+          title: string
+          updated_at: string
+          url: string | null
+          week_number: number
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          kind: string
+          position?: number
+          storage_path?: string | null
+          title: string
+          updated_at?: string
+          url?: string | null
+          week_number: number
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          duration_seconds?: number | null
+          id?: string
+          kind?: string
+          position?: number
+          storage_path?: string | null
+          title?: string
+          updated_at?: string
+          url?: string | null
+          week_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_week_videos_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_youtube_links: {
         Row: {
           course_id: string
@@ -2864,6 +2914,45 @@ export type Database = {
             columns: ["student_id"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      student_video_watches: {
+        Row: {
+          course_id: string
+          id: string
+          student_id: string
+          video_id: string
+          watched_at: string
+        }
+        Insert: {
+          course_id: string
+          id?: string
+          student_id: string
+          video_id: string
+          watched_at?: string
+        }
+        Update: {
+          course_id?: string
+          id?: string
+          student_id?: string
+          video_id?: string
+          watched_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "student_video_watches_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "student_video_watches_video_id_fkey"
+            columns: ["video_id"]
+            isOneToOne: false
+            referencedRelation: "course_week_videos"
             referencedColumns: ["id"]
           },
         ]
