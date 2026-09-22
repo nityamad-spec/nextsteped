@@ -13,6 +13,8 @@ import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import CourseCollaborators from "@/components/CourseCollaborators";
 import CourseStatusBanner from "@/components/CourseStatusBanner";
+import TargetRoleCard from "@/components/teacher/TargetRoleCard";
+import { useCourseType } from "@/hooks/useCourseType";
 
 /* ── Mastery band thresholds (mirror update-mastery / DB CHECK constraint) ── */
 function bandFor(score: number): "beginner" | "developing" | "proficient" | "expert" {

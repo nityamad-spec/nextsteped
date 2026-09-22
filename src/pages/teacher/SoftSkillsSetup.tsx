@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { Navigate } from "react-router-dom";
+import { Link, Navigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -276,16 +276,17 @@ const SoftSkillsSetup = () => {
         </CardHeader>
         <CardContent className="space-y-4">
           <div className="space-y-1.5">
-            <Input
-              value={targetRole}
-              placeholder="e.g. AI Engineer"
-              onChange={(e) => setTargetRole(e.target.value)}
-              onBlur={() => void saveTargetRole()}
-              className="max-w-sm"
-            />
+            <p className="text-sm">
+              {targetRole
+                ? <>Students see <span className="font-medium">{targetRole}</span> as their track.</>
+                : "No target role picked yet."}
+            </p>
             <p className="text-xs text-muted-foreground">
-              Shown to students on their home page as their pathway track. Leave blank to use the
-              course name.
+              Set the role on your{" "}
+              <Link to="/teacher/courses/dashboard" className="underline underline-offset-2">
+                Course Dashboard
+              </Link>
+              . AI drafts for career readiness use this role.
             </p>
           </div>
           <div className="grid gap-4 sm:grid-cols-2 sm:max-w-lg">
