@@ -382,55 +382,14 @@ const StudentResources = () => {
           </Button>
           <h1 className="font-heading text-2xl font-bold">Compensation</h1>
         </div>
-        <p className="text-sm text-muted-foreground">
-          Typical new-grad pay structures by role. Ranges are indicative and vary by company,
-          city, and negotiation.
-        </p>
 
-        <div className="grid gap-4 md:grid-cols-2">
-          {compensation.map((r) => (
-            <Card key={r.id}>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2 text-base">
-                  <Briefcase className="h-4 w-4 text-primary" /> {r.role_title}
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-3 text-sm">
-                <div className="space-y-1.5">
-                  {r.base_range && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Base</span>
-                      <span className="font-medium">{r.base_range}</span>
-                    </div>
-                  )}
-                  {r.bonus_range && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Bonus</span>
-                      <span className="font-medium">{r.bonus_range}</span>
-                    </div>
-                  )}
-                  {r.equity_range && (
-                    <div className="flex justify-between">
-                      <span className="text-muted-foreground">Equity</span>
-                      <span className="font-medium">{r.equity_range}</span>
-                    </div>
-                  )}
-                  {r.total_range && (
-                    <>
-                      <Separator className="my-2" />
-                      <div className="flex justify-between">
-                        <span className="font-semibold">Total</span>
-                        <span className="font-semibold">{r.total_range}</span>
-                      </div>
-                    </>
-                  )}
-                </div>
-                {r.notes && <p className="text-xs text-muted-foreground">{r.notes}</p>}
-                {renderAttachments(r.id)}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <CompensationMatrix
+          roles={compRoles}
+          tiers={compTiers}
+          cells={compCells}
+          lastRun={compLastRun}
+          loading={compLoading}
+        />
       </div>
     );
   }
