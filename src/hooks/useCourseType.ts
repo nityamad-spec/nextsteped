@@ -3,31 +3,35 @@ import { supabase } from "@/integrations/supabase/client";
 
 export type CourseType = "academic" | "employment";
 
-export const COURSE_TYPE_LABEL: Record<CourseType, string> = {
-  academic: "Academic Course",
-  employment: "Employment Pathway",
-};
+interface CourseTypeState {
+  loading: boolean;
+  courseType: CourseType;
+  /** The course id the state describes (undefined before any fetch, null for "no course"). */
+  forId: string | null | undefined;
+}
 
 /**
- * Per-course type gate. Chosen at course creation and locked afterwards
- * (only admins can change it). Employment-pathway courses unlock the Soft
- * Skills setup step and a Soft Skills unit in the student learning path.
+ * Fetches `courses.course_type` and exposes pathway booleans.
  *
- * IMPORTANT: `isEmployment` is false until `ready === true` — consumers must
- * wait for `ready` before rendering employment-only UI.
+ * `ready` is only true when the state actually describes the requested
+ * courseId — the initial state and the state for a previously requested
+ * course are treated as "not ready" so callers never read a stale type
+ * during the courseId null → value transition (or a course switch).
  */
-export function useCourseType(courseId: string | null | undefined) {
-  const [ready, setReady] = useState(false);
-  const [courseType, setCourseType] = useState<CourseType>("academic");
+export function useCourseType(courseId: string | null) {
+  const [state, setState] = useState<CourseTypeState>({
+    loading: false,
+    courseType: "academic",
+    forId: undefined,
+  });
 
   useEffect(() => {
+    let cancelled = false;
     if (!courseId) {
-      setCourseType("academic");
-      setReady(true);
+      setState({ loading: false, courseType: "academic", forId: null });
       return;
     }
-    let cancelled = false;
-    setReady(false);
+    setState((s) => ({ ...s, loading: true }));
     (async () => {
       const { data, error } = await supabase
         .from("courses")
@@ -35,14 +39,21 @@ export function useCourseType(courseId: string | null | undefined) {
         .eq("id", courseId)
         .maybeSingle();
       if (cancelled) return;
-      const t = !error ? data?.course_type : undefined;
-      setCourseType(t === "employment" ? "employment" : "academic");
-      setReady(true);
+      const t = !error && data?.course_type === "employment" ? "employment" : "academic";
+      setState({ loading: false, courseType: t, forId: courseId });
     })();
     return () => {
       cancelled = true;
     };
   }, [courseId]);
 
-  return { ready, courseType, isEmployment: ready && courseType === "employment" };
+  const ready = !state.loading && state.forId === courseId;
+  const courseType = ready ? state.courseType : "academic";
+  return {
+    loading: state.loading,
+    ready,
+    courseType,
+    isEmployment: ready && courseType === "employment",
+    isAcademic: ready && courseType === "academic",
+  };
 }
