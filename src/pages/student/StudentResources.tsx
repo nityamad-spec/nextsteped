@@ -432,14 +432,14 @@ const StudentResources = () => {
           <p className="text-sm text-muted-foreground">No companies in this tier yet.</p>
         ) : (
           <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-            {filtered.map((c, index) => (
+            {filtered.map((c) => (
               <button
                 key={c.id}
                 onClick={() => setSelectedCompanyId(c.id)}
                 className="group flex min-h-64 flex-col rounded-lg border bg-card p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
               >
                 <div className="flex min-h-12 items-start justify-between gap-6">
-                  <span className={`flex h-12 w-12 flex-none items-center justify-center rounded-lg border border-current/20 text-lg font-bold ${COMPANY_MARK_STYLES[index % COMPANY_MARK_STYLES.length]}`}>
+                  <span className={`flex h-12 w-12 flex-none items-center justify-center rounded-lg border border-current/20 text-lg font-bold ${COMPANY_MARK_STYLES[Math.abs(c.position - 1) % COMPANY_MARK_STYLES.length]}`}>
                     {c.name.charAt(0)}
                   </span>
                   <Badge variant="outline" className={`mt-1 flex-none ${tierBadgeClass(c.tier)}`}>

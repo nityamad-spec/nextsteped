@@ -74,7 +74,7 @@ export function tierBadgeClass(tier: ResourceTier): string {
     case "tier_1":
       return "border-success/30 bg-success/10 text-success";
     case "mid_tier":
-      return "border-warning/40 bg-warning/10 text-foreground";
+      return "border-tier-mid-border bg-tier-mid text-tier-mid-foreground";
     case "startup":
       return "border-primary/30 bg-primary/10 text-primary";
   }

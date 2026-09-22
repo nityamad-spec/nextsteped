@@ -167,7 +167,7 @@ export function CompensationMatrix({ roles, tiers, cells, lastRun, loading }: Pr
                 <p className="text-sm font-semibold text-current">{t.label}</p>
               </div>
               {t.examples && (
-                  <p className="mt-1 text-xs text-current opacity-80">e.g. {t.examples}</p>
+                <p className="mt-1 text-xs text-current opacity-80">e.g. {t.examples}</p>
               )}
             </div>
           );
