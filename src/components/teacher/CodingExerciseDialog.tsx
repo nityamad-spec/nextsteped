@@ -93,6 +93,8 @@ const CodingExerciseDialog = ({
   reviewIds,
   reviewIndex,
   onReviewNavigate,
+  saveDraft = updateExercise,
+  validateDraft = runExerciseValidation,
 }: CodingExerciseDialogProps) => {
   const { toast } = useToast();
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft);
