@@ -528,6 +528,18 @@ const AIChat = () => {
         exerciseTitle: exercise?.title ?? null,
         exerciseStatement: exercise?.problem_statement ?? null,
       });
+      // Daily DSA opens a graded terminal: the student submits against the
+      // exercise's visible test cases, and only a full pass marks it solved.
+      setTerminalSubmission(
+        isDaily && exercise && exercise.standard_test_cases.length > 0
+          ? {
+              exerciseId: exercise.id,
+              courseId: enrolledCourseId,
+              studentId: user.id,
+              testCases: exercise.standard_test_cases,
+            }
+          : null,
+      );
       setTerminalUnit(unit > 0 ? unit : null);
       setTerminalResumeSessionId(null);
       setShowTerminal(true);
@@ -543,10 +555,9 @@ const AIChat = () => {
         });
         if (error) console.error("[AIChat] terminal session log failed", error);
       }
-      // Per-exercise completion signal: opening the terminal for a specific
-      // exercise marks it done. `source` leaves room for run-based completion
-      // once code execution lands.
-      if (exercise) {
+      // Learning-path exercises still count as done on open. Daily DSA does
+      // not — it is marked solved only when every test case passes.
+      if (exercise && !isDaily) {
         const { error: progressError } = await supabase
           .from("coding_exercise_progress")
           .upsert(
