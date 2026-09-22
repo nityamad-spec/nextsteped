@@ -1079,6 +1079,38 @@ export type Database = {
           },
         ]
       }
+      course_resource_picks: {
+        Row: {
+          course_id: string
+          created_at: string
+          id: string
+          resource_id: string
+          resource_type: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          id?: string
+          resource_id: string
+          resource_type: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          id?: string
+          resource_id?: string
+          resource_type?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_resource_picks_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_roster_allowlist: {
         Row: {
           added_by: string | null
@@ -2508,6 +2540,153 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      resource_companies: {
+        Row: {
+          apply_url: string | null
+          created_at: string
+          description: string | null
+          dsa_difficulty: number | null
+          focus_areas: string | null
+          id: string
+          interview_format: string | null
+          locations: string | null
+          logo_color: string
+          name: string
+          pay_range: string | null
+          position: number
+          roles: string[]
+          tier: string
+          updated_at: string
+        }
+        Insert: {
+          apply_url?: string | null
+          created_at?: string
+          description?: string | null
+          dsa_difficulty?: number | null
+          focus_areas?: string | null
+          id?: string
+          interview_format?: string | null
+          locations?: string | null
+          logo_color?: string
+          name: string
+          pay_range?: string | null
+          position?: number
+          roles?: string[]
+          tier?: string
+          updated_at?: string
+        }
+        Update: {
+          apply_url?: string | null
+          created_at?: string
+          description?: string | null
+          dsa_difficulty?: number | null
+          focus_areas?: string | null
+          id?: string
+          interview_format?: string | null
+          locations?: string | null
+          logo_color?: string
+          name?: string
+          pay_range?: string | null
+          position?: number
+          roles?: string[]
+          tier?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      resource_compensation: {
+        Row: {
+          base_range: string | null
+          bonus_range: string | null
+          created_at: string
+          equity_range: string | null
+          id: string
+          notes: string | null
+          position: number
+          role_title: string
+          total_range: string | null
+          updated_at: string
+        }
+        Insert: {
+          base_range?: string | null
+          bonus_range?: string | null
+          created_at?: string
+          equity_range?: string | null
+          id?: string
+          notes?: string | null
+          position?: number
+          role_title: string
+          total_range?: string | null
+          updated_at?: string
+        }
+        Update: {
+          base_range?: string | null
+          bonus_range?: string | null
+          created_at?: string
+          equity_range?: string | null
+          id?: string
+          notes?: string | null
+          position?: number
+          role_title?: string
+          total_range?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      resource_files: {
+        Row: {
+          created_at: string
+          file_name: string
+          id: string
+          resource_id: string
+          resource_type: string
+          storage_path: string
+        }
+        Insert: {
+          created_at?: string
+          file_name: string
+          id?: string
+          resource_id: string
+          resource_type: string
+          storage_path: string
+        }
+        Update: {
+          created_at?: string
+          file_name?: string
+          id?: string
+          resource_id?: string
+          resource_type?: string
+          storage_path?: string
+        }
+        Relationships: []
+      }
+      resource_links: {
+        Row: {
+          created_at: string
+          id: string
+          label: string
+          resource_id: string
+          resource_type: string
+          url: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          label: string
+          resource_id: string
+          resource_type: string
+          url: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          label?: string
+          resource_id?: string
+          resource_type?: string
+          url?: string
+        }
+        Relationships: []
       }
       setup_progress_log: {
         Row: {
