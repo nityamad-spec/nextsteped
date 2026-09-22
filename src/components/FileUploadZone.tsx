@@ -90,6 +90,10 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const [pending, setPending] = useState<File[]>([]);
   const [confirmed, setConfirmed] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UploadedFile | null>(null);
+  // Typed-confirmation state for the destructive syllabus cascade.
+  const [cascadeConfirmText, setCascadeConfirmText] = useState("");
+  const [courseCode, setCourseCode] = useState<string>("");
+
   // Per-file parse status keyed by storage_path. Only used for syllabus uploads.
   const [parseStatus, setParseStatus] = useState<Record<string, ParseStatus>>({});
   // Track start time per storage_path so we can show elapsed/remaining estimate.
