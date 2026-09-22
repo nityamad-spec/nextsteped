@@ -1493,6 +1493,7 @@ const AIChat = () => {
           setTerminalContext(null);
           setTerminalUnit(null);
           setTerminalResumeSessionId(null);
+          setTerminalSubmission(null);
         }}
         initialCode={terminalContext?.initialCode}
         initialLanguage={terminalContext?.initialLanguage}
@@ -1503,6 +1504,7 @@ const AIChat = () => {
         assistantSessionId={terminalResumeSessionId}
         unitLabel={terminalUnit ? `Unit ${terminalUnit}` : null}
         concepts={unitConcepts}
+        submission={terminalSubmission}
       />
     );
   }
@@ -1659,6 +1661,7 @@ const AIChat = () => {
                               setTerminalResumeSessionId(s.id);
                               setTerminalContext(null);
                               setTerminalUnit(null);
+                              setTerminalSubmission(null);
                               setShowTerminal(true);
                               setShowHistory(false);
                               setAssessmentActive(false);
@@ -1739,7 +1742,7 @@ const AIChat = () => {
           </div>
           {mode === "learning" && codingApproved && (
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => { setTerminalContext(null); setTerminalUnit(null); setTerminalResumeSessionId(null); setShowTerminal(true); }}>
+              <Button variant="outline" size="sm" className="h-9 text-sm gap-2" onClick={() => { setTerminalContext(null); setTerminalUnit(null); setTerminalResumeSessionId(null); setTerminalSubmission(null); setShowTerminal(true); }}>
                 <Terminal className="h-4 w-4" /> <span className="hidden sm:inline">Code</span>
               </Button>
             </div>
