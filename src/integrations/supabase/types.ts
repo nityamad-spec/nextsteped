@@ -1484,6 +1484,201 @@ export type Database = {
           },
         ]
       }
+      daily_dsa_attempts: {
+        Row: {
+          cases_passed: number
+          cases_total: number
+          course_id: string
+          created_at: string
+          id: string
+          language: string | null
+          passed: boolean
+          question_id: string
+          results: Json
+          student_id: string
+          submitted_code: string
+        }
+        Insert: {
+          cases_passed?: number
+          cases_total?: number
+          course_id: string
+          created_at?: string
+          id?: string
+          language?: string | null
+          passed?: boolean
+          question_id: string
+          results?: Json
+          student_id: string
+          submitted_code: string
+        }
+        Update: {
+          cases_passed?: number
+          cases_total?: number
+          course_id?: string
+          created_at?: string
+          id?: string
+          language?: string | null
+          passed?: boolean
+          question_id?: string
+          results?: Json
+          student_id?: string
+          submitted_code?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_dsa_attempts_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_dsa_attempts_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "daily_dsa_questions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_dsa_attempts_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_dsa_question_private: {
+        Row: {
+          created_at: string
+          hidden_test_cases: Json
+          id: string
+          question_id: string
+          reference_solution: string
+          updated_at: string
+          validated_at: string | null
+          validation_report: Json | null
+        }
+        Insert: {
+          created_at?: string
+          hidden_test_cases?: Json
+          id?: string
+          question_id: string
+          reference_solution?: string
+          updated_at?: string
+          validated_at?: string | null
+          validation_report?: Json | null
+        }
+        Update: {
+          created_at?: string
+          hidden_test_cases?: Json
+          id?: string
+          question_id?: string
+          reference_solution?: string
+          updated_at?: string
+          validated_at?: string | null
+          validation_report?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_dsa_question_private_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: true
+            referencedRelation: "daily_dsa_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      daily_dsa_questions: {
+        Row: {
+          bloom_justification: string | null
+          bloom_level: number | null
+          constraints: string | null
+          course_id: string
+          created_at: string
+          examples: Json
+          id: string
+          input_spec: string
+          language: string
+          output_spec: string
+          position: number
+          primary_language: string | null
+          problem_statement: string
+          published: boolean
+          published_at: string | null
+          reviewed_at: string | null
+          standard_test_cases: Json
+          starter_code: string | null
+          teacher_id: string
+          title: string
+          updated_at: string
+          week_number: number
+        }
+        Insert: {
+          bloom_justification?: string | null
+          bloom_level?: number | null
+          constraints?: string | null
+          course_id: string
+          created_at?: string
+          examples?: Json
+          id?: string
+          input_spec: string
+          language?: string
+          output_spec: string
+          position?: number
+          primary_language?: string | null
+          problem_statement: string
+          published?: boolean
+          published_at?: string | null
+          reviewed_at?: string | null
+          standard_test_cases?: Json
+          starter_code?: string | null
+          teacher_id: string
+          title: string
+          updated_at?: string
+          week_number: number
+        }
+        Update: {
+          bloom_justification?: string | null
+          bloom_level?: number | null
+          constraints?: string | null
+          course_id?: string
+          created_at?: string
+          examples?: Json
+          id?: string
+          input_spec?: string
+          language?: string
+          output_spec?: string
+          position?: number
+          primary_language?: string | null
+          problem_statement?: string
+          published?: boolean
+          published_at?: string | null
+          reviewed_at?: string | null
+          standard_test_cases?: Json
+          starter_code?: string | null
+          teacher_id?: string
+          title?: string
+          updated_at?: string
+          week_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_dsa_questions_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "daily_dsa_questions_teacher_id_fkey"
+            columns: ["teacher_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       degrees: {
         Row: {
           created_at: string
