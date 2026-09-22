@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { ChevronDown, Info, Loader2, TrendingUp } from "lucide-react";
+import { ChevronDown, Loader2, TrendingUp } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -9,7 +9,6 @@ import {
   formatRange,
   scalePercent,
   tierAccent,
-  SCALE_MAX_LPA,
   type CompCell,
   type CompRefreshRun,
   type CompRole,
@@ -112,7 +111,7 @@ function CellBlock({
 }
 
 export function CompensationMatrix({ roles, tiers, cells, lastRun, loading }: Props) {
-  const [open, setOpen] = useState<string | null>(null);
+  const [open, setOpen] = useState<Set<string>>(() => new Set());
 
   if (loading) {
     return (
@@ -133,7 +132,13 @@ export function CompensationMatrix({ roles, tiers, cells, lastRun, loading }: Pr
 
   const highlights = buildHighlights(roles, tiers, cells);
   const updated = lastRun?.finished_at ?? lastRun?.started_at ?? null;
-  const toggle = (key: string) => setOpen((cur) => (cur === key ? null : key));
+  const toggle = (key: string) =>
+    setOpen((current) => {
+      const next = new Set(current);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
 
   return (
     <div className="space-y-6">
@@ -156,13 +161,13 @@ export function CompensationMatrix({ roles, tiers, cells, lastRun, loading }: Pr
         {tiers.map((t) => {
           const a = tierAccent(t.accent);
           return (
-            <div key={t.id} className="rounded-lg border border-border bg-card p-3">
+            <div key={t.id} className={`rounded-lg border p-4 ${a.panel}`}>
               <div className="flex items-center gap-2">
                 <span className={`h-2 w-2 rounded-full ${a.bar}`} />
-                <p className="text-sm font-semibold">{t.label}</p>
+                <p className="text-sm font-semibold text-current">{t.label}</p>
               </div>
               {t.examples && (
-                <p className="mt-1 text-xs text-muted-foreground">e.g. {t.examples}</p>
+                  <p className="mt-1 text-xs text-current opacity-80">e.g. {t.examples}</p>
               )}
             </div>
           );
@@ -193,7 +198,7 @@ export function CompensationMatrix({ roles, tiers, cells, lastRun, loading }: Pr
                       <CellBlock
                         cell={cell}
                         accent={tier.accent}
-                        expanded={open === key}
+                        expanded={open.has(key)}
                         onToggle={() => toggle(key)}
                       />
                     </div>
@@ -205,23 +210,18 @@ export function CompensationMatrix({ roles, tiers, cells, lastRun, loading }: Pr
         ))}
       </div>
 
-      {/* How to read this */}
-      <div className="flex gap-2 rounded-lg border border-border bg-muted/40 p-3 text-xs text-muted-foreground">
-        <Info className="mt-0.5 h-4 w-4 shrink-0" />
-        <p>
-          Each bar sits on the same 0–{SCALE_MAX_LPA} LPA scale, so a longer or further-right bar
-          really does mean more money. Tap any range to see how base, bonus and equity make it up.
-        </p>
-      </div>
-
       {/* Highlights */}
       {highlights.length > 0 && (
         <div className="grid gap-3 sm:grid-cols-3">
-          {highlights.map((h) => {
-            const a = tierAccent(h.accent);
+          {highlights.map((h, index) => {
+            const highlightText = [
+              "text-tier-startup-foreground",
+              "text-tier-one-foreground",
+              "text-tier-mid-foreground",
+            ][index] ?? "text-primary";
             return (
               <div key={h.eyebrow} className="rounded-xl border border-border bg-card p-4">
-                <div className={`flex items-center gap-1.5 text-xs font-medium ${a.text}`}>
+                <div className={`flex items-center gap-1.5 text-xs font-medium ${highlightText}`}>
                   <TrendingUp className="h-3.5 w-3.5" /> {h.eyebrow}
                 </div>
                 <p className="mt-2 text-sm font-semibold">{h.title}</p>

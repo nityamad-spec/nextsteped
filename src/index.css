@@ -40,6 +40,23 @@
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
 
+    --tier-one-surface: 152 48% 95%;
+    --tier-one-border: 152 42% 78%;
+    --tier-one-foreground: 154 58% 27%;
+    --tier-mid-surface: 38 92% 95%;
+    --tier-mid-border: 35 85% 74%;
+    --tier-mid-foreground: 27 88% 32%;
+    --tier-startup-surface: 258 72% 96%;
+    --tier-startup-border: 258 64% 82%;
+    --tier-startup-foreground: 258 55% 42%;
+
+    --resource-companies-surface: 152 48% 96%;
+    --resource-companies-border: 152 38% 78%;
+    --resource-companies-foreground: 154 58% 27%;
+    --resource-compensation-surface: 258 72% 97%;
+    --resource-compensation-border: 258 56% 82%;
+    --resource-compensation-foreground: 258 55% 42%;
+
     --mastery-beginner: 234 55% 82%;
     --mastery-progressing: 234 62% 62%;
     --mastery-proficient: 234 62% 44%;
@@ -65,6 +82,23 @@
     --career-round-4: 222 74% 79%;
     --career-round-4-foreground: 0 0% 0%;
     --career-round-4-border: 222 52% 67%;
+
+    --company-mark-1: 234 72% 94%;
+    --company-mark-2: 152 55% 92%;
+    --company-mark-3: 38 88% 91%;
+    --company-mark-4: 342 72% 94%;
+    --company-mark-5: 198 72% 92%;
+    --company-mark-6: 272 68% 94%;
+    --company-mark-7: 18 82% 93%;
+    --company-mark-8: 170 52% 91%;
+    --company-mark-9: 48 88% 90%;
+    --company-mark-10: 320 64% 94%;
+    --company-mark-11: 210 72% 93%;
+    --company-mark-12: 142 52% 92%;
+    --company-mark-13: 28 78% 92%;
+    --company-mark-14: 286 58% 94%;
+    --company-mark-15: 188 58% 91%;
+    --company-mark-16: 352 72% 94%;
 
     --sidebar-background: 228 14% 97%;
     --sidebar-foreground: 228 8% 30%;
@@ -100,6 +134,21 @@
     --success-foreground: 0 0% 100%;
     --warning: 38 92% 50%;
     --warning-foreground: 0 0% 100%;
+    --tier-one-surface: 152 25% 14%;
+    --tier-one-border: 152 32% 30%;
+    --tier-one-foreground: 152 48% 72%;
+    --tier-mid-surface: 32 32% 14%;
+    --tier-mid-border: 32 48% 30%;
+    --tier-mid-foreground: 32 78% 70%;
+    --tier-startup-surface: 258 28% 16%;
+    --tier-startup-border: 258 36% 32%;
+    --tier-startup-foreground: 258 62% 78%;
+    --resource-companies-surface: 152 24% 13%;
+    --resource-companies-border: 152 30% 28%;
+    --resource-companies-foreground: 152 48% 72%;
+    --resource-compensation-surface: 258 25% 15%;
+    --resource-compensation-border: 258 34% 30%;
+    --resource-compensation-foreground: 258 60% 78%;
     --mastery-beginner: 234 55% 78%;
     --mastery-progressing: 234 62% 60%;
     --mastery-proficient: 234 62% 46%;
@@ -125,6 +174,22 @@
     --career-round-4: 234 52% 45%;
     --career-round-4-foreground: 0 0% 100%;
     --career-round-4-border: 234 54% 55%;
+    --company-mark-1: 234 32% 20%;
+    --company-mark-2: 152 28% 18%;
+    --company-mark-3: 38 34% 18%;
+    --company-mark-4: 342 30% 19%;
+    --company-mark-5: 198 30% 18%;
+    --company-mark-6: 272 28% 20%;
+    --company-mark-7: 18 34% 19%;
+    --company-mark-8: 170 26% 18%;
+    --company-mark-9: 48 34% 18%;
+    --company-mark-10: 320 28% 20%;
+    --company-mark-11: 210 30% 19%;
+    --company-mark-12: 142 26% 18%;
+    --company-mark-13: 28 32% 18%;
+    --company-mark-14: 286 26% 20%;
+    --company-mark-15: 188 27% 18%;
+    --company-mark-16: 352 30% 19%;
 
     --sidebar-background: 228 14% 9%;
     --sidebar-foreground: 228 8% 70%;
