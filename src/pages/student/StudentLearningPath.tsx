@@ -489,6 +489,9 @@ const StudentLearningPath = () => {
                   (r) => codingApproved || r?.type !== "coding-exercise",
                 )
           }
+          videos={unit.day === openUnitDay ? unitVideos : []}
+          watchedVideoIds={watchedVideoIds}
+          onMarkVideoWatched={markVideoWatched}
           activityDone={activityDone}
           onToggleActivity={toggleActivityDone}
           onStudy={() =>
