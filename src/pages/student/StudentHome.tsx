@@ -772,7 +772,7 @@ const StudentHome = () => {
         <>
           <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2">
             <EmploymentPathwayHeader
-              trackLabel={`${targetRole?.trim() || courseName || "Employment"} Track · toward job-ready`}
+              trackLabel={`${targetRole?.trim() || "Employment"} Track · toward job-ready`}
               progress={courseMastery}
             />
             <DailyDsaCard
