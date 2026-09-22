@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Outlet } from "react-router-dom";
-import { Home, Route, MessageSquare, FlaskConical, MessageSquareHeart, Briefcase } from "lucide-react";
+import { Home, Route, MessageSquare, FlaskConical, MessageSquareHeart, Briefcase, Library } from "lucide-react";
 import { useApp } from "@/contexts/AppContext";
 import { NavLink } from "@/components/NavLink";
 import { useIsMobile } from "@/hooks/use-mobile";
@@ -18,6 +18,7 @@ const studentNav = [
   { title: "Learning Path", path: "/student/learning-path", icon: Route },
   { title: "Career Readiness", path: "/student/career-readiness", icon: Briefcase, sub: true },
   { title: "Project Lab", path: "/student/project-lab", icon: FlaskConical, sub: true },
+  { title: "Resources", path: "/student/resources", icon: Library, sub: true },
   { title: "Teaching Assistant", path: "/student/chat", icon: MessageSquare },
   { title: "Feedback", path: "/student/feedback", icon: MessageSquareHeart },
 ];
@@ -53,10 +54,14 @@ const StudentLayout = () => {
   // Career Readiness is employment-pathway content: show it only when the
   // course has published modules.
   const showCareerReadiness = !softSkillsLoading && softSkills.length > 0 && !courseSuspended;
+  // Resources is shown to every skilling (employment-pathway) course; an
+  // unpicked course sees a friendly empty state on the page itself.
+  const showResources = typeReady && isEmployment && !courseSuspended;
   const nav = studentNav.filter(
     (i) =>
       (i.path !== "/student/project-lab" || showProjectLab) &&
-      (i.path !== "/student/career-readiness" || showCareerReadiness),
+      (i.path !== "/student/career-readiness" || showCareerReadiness) &&
+      (i.path !== "/student/resources" || showResources),
   );
 
   const content = courseSuspended
