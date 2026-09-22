@@ -775,7 +775,12 @@ const StudentHome = () => {
               trackLabel={`${targetRole?.trim() || courseName || "Employment"} Track · toward job-ready`}
               progress={courseMastery}
             />
-            <DailyDsaCard />
+            <DailyDsaCard
+              courseId={enrolledCourseId}
+              codingApproved={codingApproved}
+              unlockedWeeks={unlockedWeeks}
+            />
+
           </div>
           <div className="-mx-6 mb-6 bg-openings-band px-6 py-6">
             <MatchedOpeningsSection />
