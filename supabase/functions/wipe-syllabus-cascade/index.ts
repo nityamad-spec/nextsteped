@@ -362,6 +362,12 @@ Deno.serve(async (req) => {
           lesson_plan_published_at: null,
           lesson_plan_overall_outcomes: null,
           published: false,
+          // Single-use: consume the admin approval so the next cascade needs a
+          // fresh one.
+          destructive_reset_allowed: false,
+          destructive_reset_allowed_by: null,
+          destructive_reset_allowed_at: null,
+
         })
         .eq("id", courseId);
       if (error) throw error;
