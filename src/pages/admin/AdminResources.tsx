@@ -576,8 +576,14 @@ const AdminResources = () => {
               onChange={(e) => setCompanyDraft({ ...companyDraft, roles: e.target.value })}
             />
             <Textarea
-              placeholder="About the company"
-              rows={3}
+              placeholder="About the company (shown to students — start with what the company does)"
+              rows={4}
+              value={companyDraft.about}
+              onChange={(e) => setCompanyDraft({ ...companyDraft, about: e.target.value })}
+            />
+            <Textarea
+              placeholder="Short summary (one line, internal/fallback)"
+              rows={2}
               value={companyDraft.description}
               onChange={(e) => setCompanyDraft({ ...companyDraft, description: e.target.value })}
             />
@@ -585,6 +591,29 @@ const AdminResources = () => {
               placeholder="Typical interview pattern (e.g. OA + 2 coding rounds + behavioral)"
               value={companyDraft.interview_format}
               onChange={(e) => setCompanyDraft({ ...companyDraft, interview_format: e.target.value })}
+            />
+            <Textarea
+              placeholder="Rounds — one per line, shown as a numbered list"
+              rows={4}
+              value={companyDraft.rounds}
+              onChange={(e) => setCompanyDraft({ ...companyDraft, rounds: e.target.value })}
+            />
+            <Textarea
+              placeholder="What they look for"
+              rows={3}
+              value={companyDraft.look_for}
+              onChange={(e) => setCompanyDraft({ ...companyDraft, look_for: e.target.value })}
+            />
+            <Textarea
+              placeholder="Pro tip"
+              rows={2}
+              value={companyDraft.pro_tip}
+              onChange={(e) => setCompanyDraft({ ...companyDraft, pro_tip: e.target.value })}
+            />
+            <Input
+              placeholder="Sources (e.g. Levels.fyi, Glassdoor)"
+              value={companyDraft.sources}
+              onChange={(e) => setCompanyDraft({ ...companyDraft, sources: e.target.value })}
             />
             <Textarea
               placeholder="What they focus on"
