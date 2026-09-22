@@ -816,6 +816,59 @@ export type Database = {
           },
         ]
       }
+      course_career_readiness: {
+        Row: {
+          common_prompts: Json
+          course_id: string
+          created_at: string
+          id: string
+          interview_rounds: Json
+          mock_types: Json
+          practice_published: boolean
+          prepare_published: boolean
+          tested_questions: Json
+          tested_skills: string[]
+          understand_published: boolean
+          updated_at: string
+        }
+        Insert: {
+          common_prompts?: Json
+          course_id: string
+          created_at?: string
+          id?: string
+          interview_rounds?: Json
+          mock_types?: Json
+          practice_published?: boolean
+          prepare_published?: boolean
+          tested_questions?: Json
+          tested_skills?: string[]
+          understand_published?: boolean
+          updated_at?: string
+        }
+        Update: {
+          common_prompts?: Json
+          course_id?: string
+          created_at?: string
+          id?: string
+          interview_rounds?: Json
+          mock_types?: Json
+          practice_published?: boolean
+          prepare_published?: boolean
+          tested_questions?: Json
+          tested_skills?: string[]
+          understand_published?: boolean
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_career_readiness_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: true
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       course_exams: {
         Row: {
           approved: boolean

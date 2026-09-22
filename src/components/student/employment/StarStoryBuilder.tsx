@@ -25,8 +25,8 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useStarStories } from "@/hooks/useStarStories";
+import { CAREER_READINESS_EMPTY_NOTICE, type CrQaPair } from "@/lib/careerReadinessContent";
 import {
-  COMMON_PROMPTS,
   MOST_TESTED_THEMES,
   STAR_COMPLETION_THRESHOLD,
   STAR_TARGET_STORIES,
@@ -38,6 +38,8 @@ import {
 interface Props {
   targetRole?: string | null;
   courseId: string | null;
+  /** Professor-set prompts; empty means the section isn't set up yet. */
+  commonPrompts: CrQaPair[];
   onGoToPractice: () => void;
 }
 
@@ -89,7 +91,7 @@ const PLACEHOLDERS: Record<string, string> = {
  * Career Readiness "Prepare" step: a STAR story builder.
  * Stories are saved to the student's account, scoped to the course.
  */
-const StarStoryBuilder = ({ targetRole, courseId, onGoToPractice }: Props) => {
+const StarStoryBuilder = ({ targetRole, courseId, commonPrompts, onGoToPractice }: Props) => {
   const { stories, loading, create, update, remove } = useStarStories(courseId);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [reviewing, setReviewing] = useState<StarStory | null>(null);
@@ -279,7 +281,10 @@ const StarStoryBuilder = ({ targetRole, courseId, onGoToPractice }: Props) => {
       <Card className="bg-common-prompts">
         <CardContent className="space-y-2 p-4">
           <p className="text-sm font-semibold">Common prompts</p>
-          {COMMON_PROMPTS.map((p) => (
+          {commonPrompts.length === 0 && (
+            <p className="text-sm text-muted-foreground">{CAREER_READINESS_EMPTY_NOTICE}</p>
+          )}
+          {commonPrompts.map((p) => (
             <div key={p.question} className="rounded-lg border border-common-prompts-border bg-white p-3">
               <p className="text-sm font-semibold">{p.question}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">{p.guidance}</p>

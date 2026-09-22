@@ -8,6 +8,7 @@ import {
   type CareerReadinessStep,
 } from "@/lib/careerReadiness";
 import type { SoftSkillsModuleView } from "@/hooks/useCourseSoftSkills";
+import { useCourseCareerReadiness } from "@/hooks/useCourseCareerReadiness";
 import CareerReadinessStepper from "./CareerReadinessStepper";
 import UnderstandBriefing from "./UnderstandBriefing";
 import StarStoryBuilder from "./StarStoryBuilder";
@@ -44,6 +45,7 @@ const CareerReadinessSteps = ({ modules, onStudy, targetRole, courseId, initialS
   const requestedInitial = initialStep && isCareerReadinessStep(initialStep) ? initialStep : firstWithContent;
   const [active, setActive] = useState<CareerReadinessStep>(requestedInitial);
   const [openModule, setOpenModule] = useState<string | null>(null);
+  const { content } = useCourseCareerReadiness(courseId);
 
   const activeModules = byStep[active];
 
@@ -60,6 +62,9 @@ const CareerReadinessSteps = ({ modules, onStudy, targetRole, courseId, initialS
       {active === "understand" ? (
         <UnderstandBriefing
           targetRole={targetRole || "this role"}
+          rounds={content.understandPublished ? content.interviewRounds : []}
+          testedQuestions={content.understandPublished ? content.testedQuestions : []}
+          testedSkills={content.understandPublished ? content.testedSkills : []}
           onGoToPrepare={() => {
             setActive("prepare");
             setOpenModule(null);
@@ -69,13 +74,14 @@ const CareerReadinessSteps = ({ modules, onStudy, targetRole, courseId, initialS
         <StarStoryBuilder
           targetRole={targetRole}
           courseId={courseId ?? null}
+          commonPrompts={content.preparePublished ? content.commonPrompts : []}
           onGoToPractice={() => {
             setActive("practice");
             setOpenModule(null);
           }}
         />
       ) : active === "practice" ? (
-        <MockInterviewLab />
+        <MockInterviewLab mockTypes={content.practicePublished ? content.mockTypes : []} />
       ) : activeModules.length === 0 ? (
         <Card>
           <CardContent className="py-6 text-center text-sm text-muted-foreground">
