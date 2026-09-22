@@ -33,6 +33,7 @@ const StudentLayout = () => {
   const { labs: projectLabs, loading: labsLoading } = useCourseProjectLabs(enrolledCourseId, true);
   const { modules: softSkills, loading: softSkillsLoading } = useCourseSoftSkills(enrolledCourseId, true);
   const { suspended: courseSuspended } = useCourseAccess(enrolledCourseId);
+  const { ready: typeReady, isEmployment } = useCourseType(enrolledCourseId);
   const [courseName, setCourseName] = useState<string | null>(null);
 
   useEffect(() => {

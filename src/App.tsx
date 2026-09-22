@@ -48,6 +48,7 @@ import StudentLearningPath from "./pages/student/StudentLearningPath";
 import AIChat from "./pages/student/AIChat";
 import StudentProjectLab from "./pages/student/StudentProjectLab";
 import CareerReadiness from "./pages/student/CareerReadiness";
+import StudentResources from "./pages/student/StudentResources";
 import StudentProgress from "./pages/student/Progress";
 import Feedback from "./pages/student/Feedback";
 import ComingSoon from "./components/ComingSoon";
@@ -61,6 +62,7 @@ import AdminTeachers from "./pages/admin/AdminTeachers";
 import AdminSetupDebug from "./pages/admin/AdminSetupDebug";
 import AdminSetupTrace from "./pages/admin/AdminSetupTrace";
 import AdminDiagnosticRuns from "./pages/admin/AdminDiagnosticRuns";
+import AdminResources from "./pages/admin/AdminResources";
 import ResetPassword from "./pages/ResetPassword";
 import ContentLibrary from "./pages/teacher/ContentLibrary";
 import TeacherChat from "./pages/teacher/TeacherChat";
@@ -388,6 +390,7 @@ const App = () => (
                 <Route path="/student/chat" element={<AIChat />} />
                 <Route path="/student/project-lab" element={<StudentProjectLab />} />
                 <Route path="/student/career-readiness" element={<CareerReadiness />} />
+                <Route path="/student/resources" element={<StudentResources />} />
                 <Route path="/student/feedback" element={<Feedback />} />
                 <Route path="/student/progress" element={<StudentProgress />} />
               </Route>
@@ -402,6 +405,7 @@ const App = () => (
                 <Route path="setup-debug" element={<AdminSetupDebug />} />
                 <Route path="setup-trace" element={<AdminSetupTrace />} />
                 <Route path="diagnostic-runs" element={<AdminDiagnosticRuns />} />
+                <Route path="resources" element={<AdminResources />} />
               </Route>
 
 
