@@ -553,6 +553,10 @@ const AIChat = () => {
               studentId: user.id,
               testCases: exercise.standard_test_cases,
               bank: "daily",
+              mastery: {
+                conceptId: (exercise as any).concept_id ?? null,
+                bloomLevel: (exercise as any).bloom_level ?? null,
+              },
             }
           : null,
       );
