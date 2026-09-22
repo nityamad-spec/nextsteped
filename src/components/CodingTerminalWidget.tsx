@@ -271,10 +271,16 @@ export default function CodingTerminalWidget({
         <Button variant="outline" size="sm" className="h-9 gap-2" onClick={handleReset} disabled={isRunning}>
           <RotateCcw className="h-4 w-4" /> <span className="hidden sm:inline">Reset</span>
         </Button>
-        <Button size="sm" className="h-9 gap-2" onClick={handleRun} disabled={isRunning}>
+        <Button variant={canSubmit ? "outline" : "default"} size="sm" className="h-9 gap-2" onClick={handleRun} disabled={isRunning || isSubmitting}>
           {isRunning ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
           {isRunning ? "Running…" : "Run"}
         </Button>
+        {canSubmit && (
+          <Button size="sm" className="h-9 gap-2" onClick={handleSubmit} disabled={isRunning || isSubmitting}>
+            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListChecks className="h-4 w-4" />}
+            {isSubmitting ? "Checking…" : "Submit solution"}
+          </Button>
+        )}
         {assistantEnabled && courseId && (
           <Button
             variant={showAssistant ? "secondary" : "outline"}
