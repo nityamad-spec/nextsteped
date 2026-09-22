@@ -25,6 +25,13 @@ interface WipeRow {
   courseName?: string | null;
 }
 
+interface CourseGateRow {
+  id: string;
+  name: string;
+  course_code: string | null;
+  destructive_reset_allowed: boolean;
+}
+
 const WipeAuditTab = () => {
   const [rows, setRows] = useState<WipeRow[]>([]);
   const [filter, setFilter] = useState("");
@@ -32,11 +39,45 @@ const WipeAuditTab = () => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const toggle = (id: string) => setExpanded((e) => ({ ...e, [id]: !e[id] }));
 
+  // Reset-approval gate
+  const [gates, setGates] = useState<CourseGateRow[]>([]);
+  const [gateFilter, setGateFilter] = useState("");
+  const [savingGate, setSavingGate] = useState<string | null>(null);
+
   // Dry-run runner
   const [drCourseId, setDrCourseId] = useState("");
   const [drPath, setDrPath] = useState("");
   const [drWipeChat, setDrWipeChat] = useState(false);
   const [drRunning, setDrRunning] = useState(false);
+
+  const loadGates = async () => {
+    const { data } = await supabase
+      .from("courses")
+      .select("id, name, course_code, destructive_reset_allowed")
+      .order("name");
+    setGates((data as unknown as CourseGateRow[]) ?? []);
+  };
+
+  const setGate = async (courseId: string, allowed: boolean) => {
+    setSavingGate(courseId);
+    const { data: auth } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from("courses")
+      .update({
+        destructive_reset_allowed: allowed,
+        destructive_reset_allowed_by: allowed ? auth.user?.id ?? null : null,
+        destructive_reset_allowed_at: allowed ? new Date().toISOString() : null,
+      })
+      .eq("id", courseId);
+    setSavingGate(null);
+    if (error) {
+      toast.error(`Could not update: ${error.message}`);
+      return;
+    }
+    setGates((prev) => prev.map((g) => (g.id === courseId ? { ...g, destructive_reset_allowed: allowed } : g)));
+    toast.success(allowed ? "Reset approved for this course (single use)" : "Reset approval removed");
+  };
+
 
   const load = async () => {
     setLoading(true);
