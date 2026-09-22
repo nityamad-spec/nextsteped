@@ -208,6 +208,32 @@ Deno.serve(async (req) => {
       return fail(status, "authorize", steps.authorize.error!);
     }
 
+    // ───── admin approval gate ─────
+    // Teachers (owner or collaborator) may only run this destructive cascade
+    // when an admin has explicitly unlocked it for the course. Admins are
+    // exempt. The unlock is single-use: it is consumed once the wipe runs.
+    const authorizedVia = (steps.authorize.details as any)?.via as string | undefined;
+    const requiresApproval = authorizedVia !== "admin";
+    if (requiresApproval && !dryRun) {
+      const { data: gate, error: gateErr } = await admin
+        .from("courses")
+        .select("destructive_reset_allowed")
+        .eq("id", courseId)
+        .maybeSingle();
+      if (gateErr) {
+        await writeAudit(admin, false, gateErr.message);
+        return fail(500, "approval_gate", gateErr.message);
+      }
+      if (!gate?.destructive_reset_allowed) {
+        const msg =
+          "This reset deletes your published lesson plan and hides the course from enrolled students. An admin must approve it for this course before it can run.";
+        steps.approval_gate = { status: "failed", durationMs: 0, error: msg, errorCode: "APPROVAL_REQUIRED" };
+        await writeAudit(admin, false, msg);
+        return fail(403, "approval_gate", msg);
+      }
+    }
+
+
 
     // ─────────────────────────── Helpers ───────────────────────────
     // Generic "delete (or count, in dry-run) all rows in `table` for this course"
