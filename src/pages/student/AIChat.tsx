@@ -524,7 +524,11 @@ const AIChat = () => {
       let exercise: PublishedCodingExercise | null = null;
       if (autoSelectExercise) {
         try {
-          const all = await fetchPublishedExercises(enrolledCourseId);
+          // Daily DSA picks from the professor-built daily bank; learning-path
+          // links keep using the weekly coding exercises.
+          const all = isDaily
+            ? await fetchPublishedDailyDsaQuestions(enrolledCourseId)
+            : await fetchPublishedExercises(enrolledCourseId);
           exercise = selectTerminalExercise(all, unit, exerciseParam);
         } catch (e) {
           console.error("[AIChat] failed to load coding exercise for terminal", e);
@@ -537,7 +541,7 @@ const AIChat = () => {
         exerciseStatement: exercise?.problem_statement ?? null,
       });
       // Daily DSA opens a graded terminal: the student submits against the
-      // exercise's visible test cases, and only a full pass marks it solved.
+      // question's visible test cases, and only a full pass marks it solved.
       setTerminalSubmission(
         isDaily && exercise && exercise.standard_test_cases.length > 0
           ? {
@@ -545,6 +549,7 @@ const AIChat = () => {
               courseId: enrolledCourseId,
               studentId: user.id,
               testCases: exercise.standard_test_cases,
+              bank: "daily",
             }
           : null,
       );
