@@ -362,7 +362,44 @@ export default function CodingTerminalWidget({
             </pre>
           </div>
         </div>
+
+        {/* Test-case results (graded submissions only) */}
+        {canSubmit && (
+          <div className="border-t bg-background">
+            <div className="px-4 sm:px-6 py-2 text-xs uppercase tracking-wide text-muted-foreground border-b bg-muted/40 flex items-center justify-between">
+              <span>Test cases ({submission!.testCases.length})</span>
+              {solved && (
+                <span className="flex items-center gap-1 text-xs normal-case tracking-normal text-primary">
+                  <CheckCircle2 className="h-3.5 w-3.5" /> Solved
+                </span>
+              )}
+            </div>
+            <div className="max-h-40 overflow-auto px-4 sm:px-6 py-2">
+              {!testResults && (
+                <p className="py-1 text-sm text-muted-foreground">
+                  Submit your solution to check it against every test case.
+                </p>
+              )}
+              {testResults?.map((r) => (
+                <div key={r.index} className="flex items-start gap-2 py-1 text-sm">
+                  {r.passed ? (
+                    <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
+                  ) : (
+                    <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
+                  )}
+                  <span className="font-medium">Case {r.index}</span>
+                  {!r.passed && (
+                    <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
+                      expected “{r.expected.trim()}” · got “{(r.message || r.actual).trim()}”
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
       </div>
+
 
       {/* Assistant side panel (freeform practice only) */}
       {assistantEnabled && courseId && showAssistant && (
