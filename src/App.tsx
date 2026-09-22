@@ -362,6 +362,7 @@ const App = () => (
                 <Route path="/teacher/setup/materials" element={<Navigate to="/teacher/setup/upload" replace />} />
                 <Route path="/teacher/setup/concept-review" element={<RequireTeacherPath><ConceptReview /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/lesson-plan" element={<RequireTeacherPath><CourseCreation /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/dsa-questions" element={<RequireTeacherPath><DsaQuestionsSetup /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/diagnostic" element={<RequireTeacherPath><DiagnosticQuestionsSetup /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/exam-mode" element={<RequireTeacherPath><ExamMode /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/project-lab" element={<RequireTeacherPath><ProjectLabSetup /></RequireTeacherPath>} />

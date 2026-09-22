@@ -57,7 +57,6 @@ import {
   deleteDailyDsaQuestion,
   fetchDailyDsaQuestions,
   generateDailyDsaBank,
-  markDailyDsaQuestionReviewed,
   runDailyDsaQuestionValidation,
   setDailyDsaBankPublished,
   updateDailyDsaQuestion,
