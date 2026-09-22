@@ -192,12 +192,12 @@ async function run(req: Request): Promise<{ status: number; payload: unknown }> 
 
   const { data: concepts } = await admin
     .from("concepts")
-    .select("name")
+    .select("concept_code")
     .eq("course_id", courseId)
     .limit(40);
 
   const conceptList = (concepts ?? [])
-    .map((c: any) => c?.name)
+    .map((c: any) => c?.concept_code)
     .filter(Boolean)
     .join(", ");
 
