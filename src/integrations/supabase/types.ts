@@ -1593,6 +1593,7 @@ export type Database = {
         Row: {
           bloom_justification: string | null
           bloom_level: number | null
+          concept_id: string | null
           constraints: string | null
           course_id: string
           created_at: string
@@ -1617,6 +1618,7 @@ export type Database = {
         Insert: {
           bloom_justification?: string | null
           bloom_level?: number | null
+          concept_id?: string | null
           constraints?: string | null
           course_id: string
           created_at?: string
@@ -1641,6 +1643,7 @@ export type Database = {
         Update: {
           bloom_justification?: string | null
           bloom_level?: number | null
+          concept_id?: string | null
           constraints?: string | null
           course_id?: string
           created_at?: string
@@ -1663,6 +1666,13 @@ export type Database = {
           week_number?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "daily_dsa_questions_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "daily_dsa_questions_course_id_fkey"
             columns: ["course_id"]
