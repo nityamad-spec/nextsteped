@@ -45,6 +45,7 @@ const CareerReadinessSteps = ({ modules, onStudy, targetRole, courseId, initialS
   const requestedInitial = initialStep && isCareerReadinessStep(initialStep) ? initialStep : firstWithContent;
   const [active, setActive] = useState<CareerReadinessStep>(requestedInitial);
   const [openModule, setOpenModule] = useState<string | null>(null);
+  const { content } = useCourseCareerReadiness(courseId);
 
   const activeModules = byStep[active];
 

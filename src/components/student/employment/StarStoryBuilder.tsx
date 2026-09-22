@@ -25,8 +25,8 @@ import {
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
 import { useStarStories } from "@/hooks/useStarStories";
+import { CAREER_READINESS_EMPTY_NOTICE, type CrQaPair } from "@/lib/careerReadinessContent";
 import {
-  COMMON_PROMPTS,
   MOST_TESTED_THEMES,
   STAR_COMPLETION_THRESHOLD,
   STAR_TARGET_STORIES,
