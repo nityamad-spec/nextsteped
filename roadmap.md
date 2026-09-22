@@ -1,3 +1,4 @@
+- [x] Move company interview notes into Student Home target-role examples
 # Roadmap
 
 - [x] Polish Prepare text and Common prompts colors
