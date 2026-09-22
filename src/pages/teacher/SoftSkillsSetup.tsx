@@ -244,8 +244,18 @@ const SoftSkillsSetup = () => {
 
   const publishedCount = modules.filter((m) => m.published).length;
 
+  // Wait until the course id is resolved and its type is known — otherwise
+  // the employment check below would fire on the initial null-course render.
+  if (!courseId || !typeReady) {
+    return (
+      <div className="flex items-center justify-center py-24">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
   // Soft Skills only exists for employment-pathway courses.
-  if (typeReady && !isEmployment) {
+  if (!isEmployment) {
     return <Navigate to="/teacher/setup" replace />;
   }
 
