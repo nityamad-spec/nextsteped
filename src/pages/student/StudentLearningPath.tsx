@@ -25,6 +25,7 @@ import { useUnitProgress } from "@/hooks/useUnitProgress";
 import { fetchPublishedExercises, type PublishedCodingExercise } from "@/lib/codingExercises";
 import CareerReadinessStepper from "@/components/student/employment/CareerReadinessStepper";
 import { useCourseSoftSkills } from "@/hooks/useCourseSoftSkills";
+import { useWeekVideos } from "@/hooks/useWeekVideos";
 
 interface QuizResultRow {
   quiz_day: number | string;
@@ -381,6 +382,15 @@ const StudentLearningPath = () => {
 
   const openUnitDay = selectedUnit ?? focusUnit?.day ?? null;
   const openUnit = lessonPlan.find((w) => w.day === openUnitDay) ?? focusUnit;
+
+  // Week videos for the open unit (employment pathway) — watching every video
+  // counts the Study step as done.
+  const {
+    videos: unitVideos,
+    watchedIds: watchedVideoIds,
+    markWatched: markVideoWatched,
+    allWatched: allUnitVideosWatched,
+  } = useWeekVideos(isEmployment ? enrolledCourseId : null, openUnitDay);
 
   const goToStudy = (concept: string, intent: "start" | "weak") => {
     navigate(`/student/chat?newchat=true&mode=learning&concept=${encodeURIComponent(concept)}&intent=${intent}`);
