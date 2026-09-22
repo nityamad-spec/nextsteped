@@ -2223,6 +2223,63 @@ export type Database = {
         }
         Relationships: []
       }
+      star_stories: {
+        Row: {
+          action: string
+          course_id: string
+          created_at: string
+          id: string
+          result: string
+          situation: string
+          student_id: string
+          task: string
+          themes: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          action?: string
+          course_id: string
+          created_at?: string
+          id?: string
+          result?: string
+          situation?: string
+          student_id: string
+          task?: string
+          themes?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          action?: string
+          course_id?: string
+          created_at?: string
+          id?: string
+          result?: string
+          situation?: string
+          student_id?: string
+          task?: string
+          themes?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "star_stories_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "star_stories_student_id_fkey"
+            columns: ["student_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       student_answer_rationales: {
         Row: {
           ai_evaluated_at: string | null
