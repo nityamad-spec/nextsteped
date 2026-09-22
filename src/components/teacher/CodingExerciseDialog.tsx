@@ -146,7 +146,7 @@ const CodingExerciseDialog = ({
       label: CODING_VALIDATION_CHECKS[0].label,
     });
     try {
-      const next = await runExerciseValidation(exercise.id, (p) => setValidationProgress(p));
+      const next = await validateDraft(exercise.id, (p) => setValidationProgress(p));
       setReport(next);
       onSaved();
       toast({
@@ -215,7 +215,7 @@ const CodingExerciseDialog = ({
   const handleSave = async (opts?: { markReviewed?: boolean; advance?: boolean }) => {
     setSaving(true);
     try {
-      await updateExercise(exercise.id, draft, { markReviewed: opts?.markReviewed });
+      await saveDraft(exercise.id, draft, { markReviewed: opts?.markReviewed });
       const missing = exerciseMissingFields({ ...exercise, ...draft });
       toast({
         title: opts?.markReviewed ? "Exercise reviewed" : "Exercise saved",
