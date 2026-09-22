@@ -68,25 +68,28 @@ export function formatRange(cell: CompCell | undefined): string {
 }
 
 /** Tailwind classes per tier accent, kept light for the NextStep aesthetic. */
-export function tierAccent(accent: string): { bar: string; chip: string; text: string } {
+export function tierAccent(accent: string): { bar: string; chip: string; text: string; panel: string } {
   switch (accent) {
     case "amber":
       return {
-        bar: "bg-amber-500",
-        chip: "bg-amber-50 text-amber-700 border-amber-200",
-        text: "text-amber-700",
+        bar: "bg-tier-mid-foreground",
+        chip: "border-tier-mid-border bg-tier-mid text-tier-mid-foreground",
+        text: "text-tier-mid-foreground",
+        panel: "border-tier-mid-border bg-tier-mid text-tier-mid-foreground",
       };
     case "violet":
       return {
-        bar: "bg-violet-500",
-        chip: "bg-violet-50 text-violet-700 border-violet-200",
-        text: "text-violet-700",
+        bar: "bg-tier-startup-foreground",
+        chip: "border-tier-startup-border bg-tier-startup text-tier-startup-foreground",
+        text: "text-tier-startup-foreground",
+        panel: "border-tier-startup-border bg-tier-startup text-tier-startup-foreground",
       };
     default:
       return {
-        bar: "bg-emerald-500",
-        chip: "bg-emerald-50 text-emerald-700 border-emerald-200",
-        text: "text-emerald-700",
+        bar: "bg-tier-one-foreground",
+        chip: "border-tier-one-border bg-tier-one text-tier-one-foreground",
+        text: "text-tier-one-foreground",
+        panel: "border-tier-one-border bg-tier-one text-tier-one-foreground",
       };
   }
 }

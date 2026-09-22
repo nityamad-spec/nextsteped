@@ -36,15 +36,26 @@ import {
 } from "@/lib/courseResources";
 
 const ROUND_STYLES = [
-  "border-career-round-1-border bg-career-round-1 text-career-round-1-foreground",
-  "border-career-round-2-border bg-career-round-2 text-career-round-2-foreground",
-  "border-career-round-3-border bg-career-round-3 text-career-round-3-foreground",
-  "border-career-round-4-border bg-career-round-4 text-career-round-4-foreground",
+  { border: "border-career-round-1-border", circle: "border-career-round-1-border bg-career-round-1 text-career-round-1-foreground" },
+  { border: "border-career-round-2-border", circle: "border-career-round-2-border bg-career-round-2 text-career-round-2-foreground" },
+  { border: "border-career-round-3-border", circle: "border-career-round-3-border bg-career-round-3 text-career-round-3-foreground" },
+  { border: "border-career-round-4-border", circle: "border-career-round-4-border bg-career-round-4 text-career-round-4-foreground" },
 ] as const;
 
-function roundStyle(index: number): string {
+function roundStyle(index: number) {
   return ROUND_STYLES[Math.min(index, ROUND_STYLES.length - 1)] ?? ROUND_STYLES[3];
 }
+
+const COMPANY_MARK_STYLES = [
+  "bg-company-mark-1 text-primary", "bg-company-mark-2 text-tier-one-foreground",
+  "bg-company-mark-3 text-tier-mid-foreground", "bg-company-mark-4 text-destructive",
+  "bg-company-mark-5 text-primary", "bg-company-mark-6 text-tier-startup-foreground",
+  "bg-company-mark-7 text-accent", "bg-company-mark-8 text-tier-one-foreground",
+  "bg-company-mark-9 text-tier-mid-foreground", "bg-company-mark-10 text-tier-startup-foreground",
+  "bg-company-mark-11 text-primary", "bg-company-mark-12 text-tier-one-foreground",
+  "bg-company-mark-13 text-accent", "bg-company-mark-14 text-tier-startup-foreground",
+  "bg-company-mark-15 text-primary", "bg-company-mark-16 text-destructive",
+] as const;
 
 /** Half-star rating row for the 1–4 DSA difficulty scale. */
 function DifficultyStars({ value }: { value: number }) {
@@ -181,11 +192,11 @@ const StudentResources = () => {
             {companies.length > 0 && (
               <button
                 onClick={() => openSection("companies")}
-                className="group rounded-xl border bg-card p-6 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
+                className="group rounded-xl border border-resource-companies-border bg-resource-companies p-6 text-left transition-colors hover:border-resource-companies-foreground/50"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-card text-resource-companies-foreground">
                       <Building2 className="h-5 w-5" />
                     </span>
                     <div>
@@ -203,11 +214,11 @@ const StudentResources = () => {
             {compensation.length > 0 && (
               <button
                 onClick={() => openSection("compensation")}
-                className="group rounded-xl border bg-card p-6 text-left transition-colors hover:border-primary/40 hover:bg-accent/40"
+                className="group rounded-xl border border-resource-compensation-border bg-resource-compensation p-6 text-left transition-colors hover:border-resource-compensation-foreground/50"
               >
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-card text-resource-compensation-foreground">
                       <IndianRupee className="h-5 w-5" />
                     </span>
                     <div>
@@ -343,9 +354,9 @@ const StudentResources = () => {
               <CardContent>
                 <ol className="space-y-4">
                   {c.rounds.map((r, i) => (
-                    <li key={i} className={`flex gap-4 rounded-lg border p-4 ${roundStyle(i)}`}>
+                    <li key={i} className={`flex gap-4 rounded-lg border bg-card p-4 ${roundStyle(i).border}`}>
                       <span
-                        className="flex h-8 w-8 flex-none items-center justify-center rounded-full border border-current/20 bg-card/75 text-xs font-bold"
+                        className={`flex h-8 w-8 flex-none items-center justify-center rounded-full border text-xs font-bold ${roundStyle(i).circle}`}
                       >
                         {i + 1}
                       </span>
@@ -392,11 +403,16 @@ const StudentResources = () => {
       tierFilter === "all" ? companies : companies.filter((c) => c.tier === tierFilter);
     return (
       <div className="p-6 md:p-8 space-y-6">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" className="gap-2" onClick={backToOverview}>
-            <ArrowLeft className="h-4 w-4" /> Resources
-          </Button>
-          <h1 className="font-heading text-2xl font-bold">Companies</h1>
+        <div>
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="sm" className="gap-2" onClick={backToOverview}>
+              <ArrowLeft className="h-4 w-4" /> Resources
+            </Button>
+            <h1 className="font-heading text-2xl font-bold">Companies</h1>
+          </div>
+          <p className="mt-2 max-w-3xl text-sm leading-relaxed text-muted-foreground">
+            Compare target employers by roles, pay, interview format, rounds, difficulty, and focused preparation guidance.
+          </p>
         </div>
 
         <div className="flex flex-wrap gap-2">
@@ -423,7 +439,7 @@ const StudentResources = () => {
                 className="group flex min-h-64 flex-col rounded-lg border bg-card p-6 text-left shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-md"
               >
                 <div className="flex min-h-12 items-start justify-between gap-6">
-                  <span className="flex h-12 w-12 flex-none items-center justify-center rounded-lg border border-primary/20 bg-primary/10 text-lg font-bold text-primary">
+                  <span className={`flex h-12 w-12 flex-none items-center justify-center rounded-lg border border-current/20 text-lg font-bold ${COMPANY_MARK_STYLES[Math.abs(c.position - 1) % COMPANY_MARK_STYLES.length]}`}>
                     {c.name.charAt(0)}
                   </span>
                   <Badge variant="outline" className={`mt-1 flex-none ${tierBadgeClass(c.tier)}`}>
