@@ -416,8 +416,16 @@ const UnitDetailPanel = ({
       )}
 
       {/* Compact sub-sections */}
-      {(concepts.length > 0 || visibleResources.length > 0) && (
+      {(concepts.length > 0 || visibleResources.length > 0 || videos.length > 0) && (
         <div className="mt-3 space-y-2">
+          {videos.length > 0 && (
+            <WatchVideosRow
+              videos={videos}
+              watchedIds={watchedVideoIds ?? new Set()}
+              onMarkWatched={(id) => onMarkVideoWatched?.(id)}
+              locked={locked}
+            />
+          )}
           {concepts.length > 0 && (
             <Collapsible title="Concepts" meta={`${concepts.length}`}>
               <div className="grid gap-2 sm:grid-cols-2">
