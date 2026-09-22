@@ -26,6 +26,11 @@ vi.mock("@/hooks/use-toast", () => ({ toast: vi.fn() }));
 import TargetRoleCard from "./TargetRoleCard";
 
 beforeEach(() => {
+  // jsdom lacks these APIs Radix Select relies on.
+  (Element.prototype as any).scrollIntoView = vi.fn();
+  (Element.prototype as any).hasPointerCapture = vi.fn();
+  (Element.prototype as any).setPointerCapture = vi.fn();
+  (Element.prototype as any).releasePointerCapture = vi.fn();
   state.role = null;
   state.updates = [];
 });
