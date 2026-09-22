@@ -20,6 +20,8 @@ import { computeUnitStage } from "@/lib/unitStage";
 import { getMasteryLevel, MASTERY_LABEL, MASTERY_SWATCH_CLASS } from "@/lib/masteryLevels";
 import type { LearningPlanWeek } from "@/hooks/useLearningPlan";
 import { languageLabel, type PublishedCodingExercise } from "@/lib/codingExercises";
+import WatchVideosRow from "@/components/student/WatchVideosRow";
+import type { WeekVideo } from "@/lib/weekVideos";
 
 export type UnitResource = LearningPlanWeek["resources"][number];
 
@@ -50,6 +52,10 @@ export interface UnitDetailPanelProps {
   onTakeQuiz: () => void;
   onGoToNextUnit?: () => void;
   practiceViaTerminal?: boolean;
+  /** Week videos shown as watch cards in the Study section. */
+  videos?: WeekVideo[];
+  watchedVideoIds?: ReadonlySet<string>;
+  onMarkVideoWatched?: (videoId: string) => void;
   /** Earlier units aren't at the mastery goal yet — read-only view. */
   locked?: boolean;
   /** Short line explaining what unlocks this unit. */
@@ -165,6 +171,9 @@ const UnitDetailPanel = ({
   onTakeQuiz,
   onGoToNextUnit,
   practiceViaTerminal = false,
+  videos = [],
+  watchedVideoIds,
+  onMarkVideoWatched,
   locked = false,
   unlockHint,
 }: UnitDetailPanelProps) => {
@@ -407,8 +416,16 @@ const UnitDetailPanel = ({
       )}
 
       {/* Compact sub-sections */}
-      {(concepts.length > 0 || visibleResources.length > 0) && (
+      {(concepts.length > 0 || visibleResources.length > 0 || videos.length > 0) && (
         <div className="mt-3 space-y-2">
+          {videos.length > 0 && (
+            <WatchVideosRow
+              videos={videos}
+              watchedIds={watchedVideoIds ?? new Set()}
+              onMarkWatched={(id) => onMarkVideoWatched?.(id)}
+              locked={locked}
+            />
+          )}
           {concepts.length > 0 && (
             <Collapsible title="Concepts" meta={`${concepts.length}`}>
               <div className="grid gap-2 sm:grid-cols-2">
