@@ -402,7 +402,14 @@ const AdminResources = () => {
           <TabsTrigger value="compensation" className="gap-2">
             <IndianRupee className="h-4 w-4" /> Compensation ({compensation.length})
           </TabsTrigger>
+          <TabsTrigger value="matrix" className="gap-2">
+            <IndianRupee className="h-4 w-4" /> Salary matrix
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="matrix">
+          <CompMatrixAdmin />
+        </TabsContent>
 
         <TabsContent value="companies" className="space-y-3 pt-4">
           <div className="flex justify-end">
