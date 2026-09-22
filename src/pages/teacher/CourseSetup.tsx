@@ -249,7 +249,7 @@ const CourseSetup = () => {
       // Backfill or clear `completed_at` in teacher_setup_progress to keep the
       // persisted state in sync with the derived status. Fire-and-forget.
       if (courseId) {
-        const AUTO_COMPLETE_STEPS = ["upload", "concept-review", "lesson-plan", "diagnostic", "exam-mode", "project-lab", "soft-skills"];
+        const AUTO_COMPLETE_STEPS = ["upload", "concept-review", "lesson-plan", "diagnostic", "exam-mode", "project-lab", "soft-skills", "dsa-questions"];
         for (const stepId of AUTO_COMPLETE_STEPS) {
           if (next[stepId] === "Complete" && !completed[stepId]) {
             void markStepCompleted(user.id, stepId, courseId, { source: "CourseSetup.backfill" });
@@ -269,14 +269,14 @@ const CourseSetup = () => {
   const isCardLocked = (id: string) => {
     if (id === "concept-review") return statuses.upload !== "Complete";
     if (id === "lesson-plan") return statuses["concept-review"] !== "Complete";
-    if (id === "project-lab") return statuses["lesson-plan"] !== "Complete";
+    if (id === "project-lab" || id === "dsa-questions") return statuses["lesson-plan"] !== "Complete";
     return false;
   };
 
   const lockMessage = (id: string) => {
     if (id === "concept-review") return "Upload your syllabus in Step 1 to unlock this.";
     if (id === "lesson-plan") return "Confirm your concepts in Step 2 to unlock this.";
-    if (id === "project-lab") return "Publish your lesson plan in Step 3 to unlock this.";
+    if (id === "project-lab" || id === "dsa-questions") return "Publish your lesson plan in Step 3 to unlock this.";
     return "";
   };
 
@@ -294,8 +294,8 @@ const CourseSetup = () => {
   const visibleCards = CARDS.filter((c) => {
     // The Project Lab step is opt-in per teacher: admins grant it explicitly.
     if (c.id === "project-lab") return permReady && isExactlyGranted(PROJECT_LAB_SETUP_PATH);
-    // Soft Skills exists only for employment-pathway courses.
-    if (c.id === "soft-skills") return typeReady && isEmployment;
+    // Soft Skills + DSA Questions exist only for employment-pathway courses.
+    if (c.id === "soft-skills" || c.id === "dsa-questions") return typeReady && isEmployment;
     return true;
   });
 
