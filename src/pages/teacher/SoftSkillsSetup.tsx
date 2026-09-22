@@ -24,6 +24,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import SetupModuleNav from "@/components/SetupModuleNav";
 import CareerReadinessEditor from "@/components/teacher/CareerReadinessEditor";
+import CourseResourcesPicker from "@/components/teacher/CourseResourcesPicker";
 import {
   Select,
   SelectContent,
@@ -497,6 +498,8 @@ const SoftSkillsSetup = () => {
       </Card>
 
       <CareerReadinessEditor courseId={courseId} />
+
+      <CourseResourcesPicker courseId={courseId} />
 
       <SetupModuleNav finishMode nextLabel="Save & Finish" onNext={saveAll} />
     </div>

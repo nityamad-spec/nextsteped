@@ -78,6 +78,20 @@
       "when": 1790048386225,
       "tag": "0010_create_course_week_videos",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790085165798,
+      "tag": "0011_create_course_resources",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1790085239988,
+      "tag": "0012_resource_files_storage_read",
+      "breakpoints": true
     }
   ]
 }
