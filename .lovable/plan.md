@@ -1,47 +1,56 @@
-# Voice-enabled behavioural mock interviews (OneCompiler)
+# Resources tab under Learning Path (skilling courses only)
 
-Turn the Behavioural card in the Mock Interview Lab into a real voice interview: the student talks to an AI interviewer, and gets a scored report afterwards that is saved to their account.
+## What students see
 
-## What the student sees
+A new "Resources" sub-item in the left sidebar, directly under Learning Path as its third and last sub-point:
 
-On `/student/career-readiness` → Practice, the Behavioural card opens the existing Ready screen with the prep tips. "Start interview" then opens the live interview room in the page: the interviewer speaks the questions, the student answers out loud, and the browser asks for microphone permission once.
+```text
+Home
+Learning Path
+  Career Readiness
+  Project Lab
+  Resources
+Teaching Assistant
+Feedback
+```
 
-When the interview ends, the report appears in the current review layout, filled with real results:
-- Overall score and a one-line verdict
-- Strengths and things to improve
-- Per-question breakdown with the student's answer and its score
-- Per-skill scores (communication, structure, and so on)
+- Visible only for skilling (employment-pathway) courses. Academic courses never see it. On mobile the bottom bar stays flat, no indentation.
+- `/student/resources` opens an overview page: a short intro ("We've put together information on companies you can explore, plus insight into compensation for the roles you may be interested in") and two clickable sections:
+  - **Companies** — the companies students can explore and target for jobs.
+  - **Compensation** — what pay looks like for these roles.
+- Each section opens its own page-specific view (in-page, via `?section=companies` / `?section=compensation`, matching the career-readiness `?step=` pattern).
+- If the professor hasn't selected anything for the course yet, the page shows a short "No resources added yet" state instead of an empty shell.
 
-Finished interviews are listed under "Recent mocks" with their real score and date, and clicking one reopens its report. The demo entries for Behavioural are removed; the other four mock types keep their current behaviour for now.
+## Content model: admin owns a global library, professors pick per course
 
-The completed counter for Behavioural counts real finished interviews against the professor's target.
+1. **Global Companies library (admin-managed).** Each company entry: name, short description, roles they hire for, location(s), careers/apply link, and optional attached files (e.g. hiring-guide PDFs) and extra links. Draft fields — to be matched to the layout example you'll attach before implementation finalizes the fields.
+2. **Global Compensation library (admin-managed).** Role-based entries (e.g. AI Engineer) showing pay structure (base / bonus / equity / total range), notes, and source links/files. Draft fields — to be matched to the compensation example you'll attach.
+3. **Course selection (professor).** In the professor's Soft Skills setup (step 6, employment courses only), a new "Resources" section lists the global library with checkboxes — the professor picks which companies and which compensation entries their students see. Nothing is course-editable; picking only.
+4. Files attached to resources upload to the existing course-materials storage bucket; resource rows reference their storage paths.
 
-## What the professor controls
+## Where things change
 
-No new screens. The behavioural mock type the professor already configures in Soft Skills (title, minutes, prompt) becomes the interviewer's private brief, together with the course's target role. Editing it in Soft Skills changes the next interview a student starts.
+**Database (one migration, with GRANTs + RLS):**
+- `resource_companies` — global entries (name, description, roles text[], locations, apply_url, logo, position).
+- `resource_compensation` — global entries (role title, base/bonus/equity/total fields as text ranges, notes, position).
+- `resource_files` — attachments for either resource (resource type + id, file name, storage path, kind).
+- `resource_links` — external links for either resource (label, url).
+- `course_resource_picks` — (course_id, resource_type, resource_id) unique; what a professor has enabled.
+- RLS: admins (is_admin) write the global tables; professors (authenticated, is_course_member) read the global library to pick from; students read picks joined to their active enrollment (is_active_enrollment). Students read files/links only through picked resources. service_role full access.
 
-## What you need to provide
+**Student side:**
+- `StudentLayout.tsx`: add the Resources entry with the `sub: true` marker (third sub-item), filtered to employment courses using the course-type hook, alongside the existing Career Readiness / Project Lab visibility filters.
+- New `src/pages/student/StudentResources.tsx`: overview + Companies view + Compensation view; new hooks `useCourseResources` (picks + details, cached like the other student hooks).
+- Route `/student/resources` in `App.tsx` inside the student layout.
 
-A OneCompiler API account with the AI Interviewer enabled, and its API key. Their AI interview embedding runs on the enterprise user model, which is a paid plan (their published enterprise tiers start at $100/month, and each interview consumes credits). I will ask for the key through the secure secret form once you approve this plan.
+**Professor side:**
+- `SoftSkillsSetup.tsx`: new "Resources" section (employment courses only) with a checkbox list of global companies and compensation entries, plus a live count of what's selected.
 
-If the key is missing or their service rejects a request, the card shows a plain message saying voice interviews are unavailable, and nothing else in Career Readiness breaks.
+**Admin portal:**
+- New "Resources" tab in the admin area: create/edit/delete global companies and compensation entries, attach files and links, reorder.
 
-## Technical details
+## Decisions recorded
 
-Database migration:
-- `onecompiler_users` — one row per student: `user_id`, OneCompiler `external_user_id`, `user_token`, timestamps. RLS: students read their own row; writes are service-role only (edge functions).
-- `mock_interview_sessions` — `id`, `student_id`, `course_id`, `mock_type_id`, `oc_session_id`, `status` (`active` | `completed`), `score`, `feedback` jsonb, `started_at`, `completed_at`. RLS: students select/insert their own rows; teachers of the course may read (aggregate view later). GRANTs for `authenticated` and `service_role` on both tables.
-
-Secret: `ONECOMPILER_API_KEY` (server-side only).
-
-Edge functions (all call `https://onecompiler.com/v1/...` with `X-API-Key`, never from the browser):
-- `start-mock-interview` — verifies the caller's enrollment, provisions/reuses their OneCompiler user (`POST /v1/users`, storing `api.token`), upserts a custom interview from the professor's behavioural mock type (`POST/PUT /v1/ai-interviewer/interviews` with `kind: "talk"`, `mins`, `skills`, private `brief`), creates a session (`POST /v1/ai-interviewer/sessions` with `custom: true`, `mode: "voice"`), records the row, and returns `embedUrl` plus the user token.
-- `finish-mock-interview` — called on the `interviewFinished` event; fetches `GET /v1/ai-interviewer/sessions/:id` server-side and stores `score` and `feedback`. Non-OK responses are surfaced with their status and body.
-
-Frontend:
-- `src/components/student/employment/VoiceMockSession.tsx` — renders the returned `embedUrl` in an iframe with `allow="microphone; autoplay"` and `interviewEvents=true`, listens for `oc-interview` `postMessage` events (origin-checked against `onecompiler.com`), and on `interviewFinished` invokes the finish function and switches to the report.
-- `src/hooks/useMockInterviewSessions.ts` — student's sessions for the course, used for the recent list and per-type completed counts.
-- `MockInterviewLab.tsx` — the behavioural type routes to `MockReadyScreen` → `VoiceMockSession`; recent list and counts read real sessions for behavioural and keep demo data for the rest.
-- `MockReviewScreen.tsx` — accepts a real feedback object (verdict, strengths, improvements, skills, per-question rows) alongside its current demo props.
-
-Verification: `bunx tsgo --noEmit`, unit tests for the session/feedback mapping, and an authenticated browser check of the Practice step.
+- Tab is shown to every skilling course; an unpicked course sees a friendly empty state (not hidden like Career Readiness/Project Lab).
+- Company card and compensation fields are drafts; the exact fields follow the screenshots/examples you'll attach, applied during implementation.
+- Content is global (same library for all skilling courses); per-course control is selection only.
