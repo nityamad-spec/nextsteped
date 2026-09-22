@@ -59,6 +59,7 @@ import {
   generateDailyDsaBank,
   runDailyDsaQuestionValidation,
   setDailyDsaBankPublished,
+  setDailyDsaQuestionConcept,
   updateDailyDsaQuestion,
   type DailyDsaGenerationProgress,
   type DailyDsaQuestion,
@@ -78,6 +79,7 @@ const DsaQuestionsSetup = () => {
   const [relevant, setRelevant] = useState(false);
   const [codingWeeks, setCodingWeeks] = useState<number[]>([]);
   const [questions, setQuestions] = useState<DailyDsaQuestion[]>([]);
+  const [conceptOptions, setConceptOptions] = useState<{ id: string; label: string }[]>([]);
 
   const [count, setCount] = useState<number>(20);
   const [language, setLanguage] = useState<string>("python");
@@ -104,15 +106,19 @@ const DsaQuestionsSetup = () => {
     (async () => {
       setLoading(true);
       try {
-        const [{ data: course }, { data: weeks }] = await Promise.all([
+        const [{ data: course }, { data: weeks }, { data: conceptRows }] = await Promise.all([
           supabase.from("courses").select("coding_access_status").eq("id", courseId).maybeSingle(),
           supabase
             .from("lesson_plan_weeks")
             .select("week_number, is_coding_week")
             .eq("course_id", courseId)
             .order("week_number"),
+          supabase.from("concepts").select("id, concept_code").eq("course_id", courseId),
         ]);
         if (cancelled) return;
+        setConceptOptions(
+          (conceptRows ?? []).map((c) => ({ id: c.id, label: c.concept_code })),
+        );
         const cw = (weeks ?? []).filter((w) => w.is_coding_week).map((w) => w.week_number);
         setCodingWeeks(cw);
         const ok =
@@ -438,6 +444,26 @@ const DsaQuestionsSetup = () => {
         }
         saveDraft={updateDailyDsaQuestion}
         validateDraft={runDailyDsaQuestionValidation}
+        conceptPicker={{
+          options: conceptOptions,
+          value: (editQuestion as any)?.concept_id ?? null,
+          onChange: async (conceptId) => {
+            if (!editQuestion) return;
+            try {
+              await setDailyDsaQuestionConcept(editQuestion.id, conceptId);
+              await reload();
+              setEditQuestion((prev) =>
+                prev ? ({ ...prev, concept_id: conceptId } as any) : prev,
+              );
+            } catch (err: any) {
+              toast({
+                title: "Couldn't update the concept tag",
+                description: err?.message || "Please try again.",
+                variant: "destructive",
+              });
+            }
+          },
+        }}
       />
 
       {/* Delete confirmation */}
