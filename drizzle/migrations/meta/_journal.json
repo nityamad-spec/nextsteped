@@ -64,6 +64,13 @@
       "when": 1790046295245,
       "tag": "0008_daily_dsa_concept_tag",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790046952533,
+      "tag": "0009_create_course_career_readiness",
+      "breakpoints": true
     }
   ]
 }
