@@ -566,7 +566,8 @@ const AIChat = () => {
           student_id: user.id,
           course_id: enrolledCourseId,
           week_number: unit,
-          exercise_id: exercise?.id ?? null,
+          // Daily DSA questions live in their own bank — not a coding_exercises FK target.
+          exercise_id: isDaily ? null : (exercise?.id ?? null),
           language: exercise?.language ?? null,
         });
         if (error) console.error("[AIChat] terminal session log failed", error);
