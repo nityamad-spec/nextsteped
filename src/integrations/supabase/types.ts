@@ -784,6 +784,168 @@ export type Database = {
           },
         ]
       }
+      comp_cells: {
+        Row: {
+          base_note: string | null
+          bonus_note: string | null
+          equity_note: string | null
+          high_lpa: number | null
+          id: string
+          is_manual: boolean
+          low_lpa: number | null
+          mid_lpa: number | null
+          not_typical: boolean
+          note: string | null
+          role_id: string
+          sources: string | null
+          tier_id: string
+          updated_at: string
+        }
+        Insert: {
+          base_note?: string | null
+          bonus_note?: string | null
+          equity_note?: string | null
+          high_lpa?: number | null
+          id?: string
+          is_manual?: boolean
+          low_lpa?: number | null
+          mid_lpa?: number | null
+          not_typical?: boolean
+          note?: string | null
+          role_id: string
+          sources?: string | null
+          tier_id: string
+          updated_at?: string
+        }
+        Update: {
+          base_note?: string | null
+          bonus_note?: string | null
+          equity_note?: string | null
+          high_lpa?: number | null
+          id?: string
+          is_manual?: boolean
+          low_lpa?: number | null
+          mid_lpa?: number | null
+          not_typical?: boolean
+          note?: string | null
+          role_id?: string
+          sources?: string | null
+          tier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "comp_cells_role_id_fkey"
+            columns: ["role_id"]
+            isOneToOne: false
+            referencedRelation: "comp_roles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "comp_cells_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "comp_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      comp_refresh_runs: {
+        Row: {
+          cells_updated: number
+          created_by: string | null
+          finished_at: string | null
+          id: string
+          message: string | null
+          model: string | null
+          snapshot: Json | null
+          sources: string | null
+          started_at: string
+          status: string
+        }
+        Insert: {
+          cells_updated?: number
+          created_by?: string | null
+          finished_at?: string | null
+          id?: string
+          message?: string | null
+          model?: string | null
+          snapshot?: Json | null
+          sources?: string | null
+          started_at?: string
+          status?: string
+        }
+        Update: {
+          cells_updated?: number
+          created_by?: string | null
+          finished_at?: string | null
+          id?: string
+          message?: string | null
+          model?: string | null
+          snapshot?: Json | null
+          sources?: string | null
+          started_at?: string
+          status?: string
+        }
+        Relationships: []
+      }
+      comp_roles: {
+        Row: {
+          active: boolean
+          blurb: string | null
+          created_at: string
+          id: string
+          position: number
+          title: string
+        }
+        Insert: {
+          active?: boolean
+          blurb?: string | null
+          created_at?: string
+          id?: string
+          position?: number
+          title: string
+        }
+        Update: {
+          active?: boolean
+          blurb?: string | null
+          created_at?: string
+          id?: string
+          position?: number
+          title?: string
+        }
+        Relationships: []
+      }
+      comp_tiers: {
+        Row: {
+          accent: string
+          created_at: string
+          examples: string | null
+          id: string
+          key: string
+          label: string
+          position: number
+        }
+        Insert: {
+          accent?: string
+          created_at?: string
+          examples?: string | null
+          id?: string
+          key: string
+          label: string
+          position?: number
+        }
+        Update: {
+          accent?: string
+          created_at?: string
+          examples?: string | null
+          id?: string
+          key?: string
+          label?: string
+          position?: number
+        }
+        Relationships: []
+      }
       concepts: {
         Row: {
           concept_code: string
