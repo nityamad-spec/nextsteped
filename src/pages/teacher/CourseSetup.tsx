@@ -204,6 +204,16 @@ const CourseSetup = () => {
         if ((softCount ?? 0) > 0) next["soft-skills"] = "Complete";
         else if (opened["soft-skills"]) next["soft-skills"] = "In Progress";
 
+        // DSA Questions (employment pathway, optional): Complete when at least one
+        // daily-practice question is published.
+        const { count: dsaCount } = await supabase
+          .from("daily_dsa_questions")
+          .select("id", { count: "exact", head: true })
+          .eq("course_id", courseId)
+          .eq("published", true);
+        if ((dsaCount ?? 0) > 0) next["dsa-questions"] = "Complete";
+        else if (opened["dsa-questions"]) next["dsa-questions"] = "In Progress";
+
         // Exam Mode (TA settings)
         const { data: ta } = await supabase
           .from("course_ta_settings")
@@ -233,6 +243,7 @@ const CourseSetup = () => {
       }
       if (next["lesson-plan"] !== "Complete") {
         next["project-lab"] = "Not Started";
+        next["dsa-questions"] = "Not Started";
       }
 
       // Backfill or clear `completed_at` in teacher_setup_progress to keep the
