@@ -23,6 +23,7 @@ import { useCourseType } from "@/hooks/useCourseType";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import SetupModuleNav from "@/components/SetupModuleNav";
+import CareerReadinessEditor from "@/components/teacher/CareerReadinessEditor";
 import {
   Select,
   SelectContent,
@@ -494,6 +495,8 @@ const SoftSkillsSetup = () => {
           </div>
         </CardContent>
       </Card>
+
+      <CareerReadinessEditor courseId={courseId} />
 
       <SetupModuleNav finishMode nextLabel="Save & Finish" onNext={saveAll} />
     </div>
