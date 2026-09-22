@@ -50,7 +50,12 @@ type CompanyDraft = {
   pay_range: string;
   roles: string; // comma-separated
   description: string;
+  about: string;
   interview_format: string;
+  rounds: string; // one round per line
+  look_for: string;
+  pro_tip: string;
+  sources: string;
   focus_areas: string;
   dsa_difficulty: string;
   locations: string;
