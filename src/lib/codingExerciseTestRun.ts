@@ -67,13 +67,14 @@ export function testRunBlockedReason(draft: ExerciseDraft): string | null {
 }
 
 async function runOne(
-  draft: ExerciseDraft,
+  language: string,
+  code: string,
   testCase: TestRunCase,
 ): Promise<TestRunResult> {
   const { data, error } = await supabase.functions.invoke("run-code", {
     body: {
-      language: draft.language,
-      code: draft.reference_solution,
+      language,
+      code,
       stdin: testCase.input,
     },
   });
@@ -97,14 +98,15 @@ async function runOne(
 }
 
 /**
- * Executes the reference solution against every test case.
+ * Executes arbitrary code against a list of test cases.
  * Progress is reported after each completed case; results keep input order.
  */
-export async function runReferenceAgainstTestCases(
-  draft: ExerciseDraft,
+export async function runCodeAgainstTestCases(
+  language: string,
+  code: string,
+  cases: TestRunCase[],
   onProgress?: (p: TestRunProgress) => void,
 ): Promise<TestRunResult[]> {
-  const cases = collectTestCases(draft);
   const total = cases.length;
   const results: TestRunResult[] = new Array(total);
   let completed = 0;
@@ -113,7 +115,7 @@ export async function runReferenceAgainstTestCases(
   const worker = async () => {
     while (cursor < total) {
       const i = cursor++;
-      results[i] = await runOne(draft, cases[i]);
+      results[i] = await runOne(language, code, cases[i]);
       completed += 1;
       onProgress?.({ completed, total });
     }
@@ -124,6 +126,19 @@ export async function runReferenceAgainstTestCases(
   );
 
   return results;
+}
+
+/** Teacher-side: runs the exercise's reference solution against every test case. */
+export async function runReferenceAgainstTestCases(
+  draft: ExerciseDraft,
+  onProgress?: (p: TestRunProgress) => void,
+): Promise<TestRunResult[]> {
+  return runCodeAgainstTestCases(
+    draft.language,
+    draft.reference_solution,
+    collectTestCases(draft),
+    onProgress,
+  );
 }
 
 export function summariseTestRun(results: TestRunResult[]): {
