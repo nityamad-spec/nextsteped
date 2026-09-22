@@ -1,25 +1,11 @@
 import { ArrowRight, BookOpen } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Progress } from "@/components/ui/progress";
-import { COMPANY_SPECIFIC_NOTES } from "@/lib/careerReadinessBriefing";
 import {
   CAREER_READINESS_EMPTY_NOTICE,
   type CrInterviewRound,
   type CrQaPair,
 } from "@/lib/careerReadinessContent";
-
-const statusClass: Record<string, string> = {
-  Ready: "text-green-600 dark:text-green-400",
-  Stretch: "text-amber-600 dark:text-amber-400",
-  Early: "text-muted-foreground",
-};
-
-const barClass: Record<string, string> = {
-  Ready: "!bg-green-600 dark:!bg-green-400",
-  Stretch: "!bg-amber-600 dark:!bg-amber-400",
-  Early: "!bg-muted-foreground",
-};
 
 interface Props {
   targetRole: string;
@@ -32,8 +18,7 @@ interface Props {
 
 /**
  * Role briefing for the Career Readiness "Understand" step. Rounds, tested
- * questions and skills come from the professor's Soft Skills setup; the
- * company-specific notes remain sample content.
+ * questions and skills come from the professor's Soft Skills setup.
  */
 const article = (word: string) => (/^[aeiou]/i.test(word) ? "an" : "a");
 
@@ -144,38 +129,6 @@ const UnderstandBriefing = ({
             ))}
           </div>
         )}
-      </CardContent>
-    </Card>
-
-    <Card>
-      <CardContent className="space-y-3 p-5">
-        <div>
-          <p className="text-sm font-semibold">Company-specific notes</p>
-          <p className="mt-0.5 text-sm text-muted-foreground">
-            Openings matched to you have their own interview quirks. A few from your matched
-            list.
-          </p>
-        </div>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {COMPANY_SPECIFIC_NOTES.map((c) => (
-            <Card key={c.company}>
-              <CardContent className="p-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 flex-none items-center justify-center rounded-lg bg-primary/10 text-sm font-bold text-primary">
-                    {c.initial}
-                  </div>
-                  <p className="truncate text-sm font-semibold">{c.company}</p>
-                </div>
-                <p className="mt-3 text-sm text-muted-foreground">{c.note}</p>
-                <div className="mt-3 flex items-center gap-3">
-                  <Progress value={c.match} className="h-2 flex-1" indicatorClassName={barClass[c.status]} />
-                  <span className={`text-xs font-semibold ${statusClass[c.status]}`}>{c.status}</span>
-                  <span className="text-xs text-muted-foreground">{c.match}%</span>
-                </div>
-              </CardContent>
-            </Card>
-          ))}
-        </div>
       </CardContent>
     </Card>
 
