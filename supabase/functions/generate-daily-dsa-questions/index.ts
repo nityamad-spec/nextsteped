@@ -544,6 +544,16 @@ async function run(
     .eq("course_id", courseId);
   const avoidTitles = (existing ?? []).map((r: any) => asStr(r.title)).filter(Boolean);
 
+  // Concept code → id map so generated questions can be tagged for mastery.
+  const { data: conceptRows } = await admin
+    .from("concepts")
+    .select("id, concept_code")
+    .eq("course_id", courseId);
+  const conceptIdByCode = new Map<string, string>();
+  for (const c of conceptRows ?? []) {
+    conceptIdByCode.set(asStr((c as any).concept_code).toLowerCase(), String((c as any).id));
+  }
+
   // ─── Generate week by week so progress is meaningful ───
   const allPublicRows: any[] = [];
   const allPrivateDrafts: GeneratedQuestion[] = [];
@@ -600,6 +610,9 @@ async function run(
         standard_test_cases: q.standard_test_cases,
         bloom_level: q.bloom_level,
         bloom_justification: q.bloom_justification,
+        concept_id: q.concept_code
+          ? (conceptIdByCode.get(q.concept_code.toLowerCase()) ?? null)
+          : null,
         published: false,
         teacher_id: userId,
       });
