@@ -1,48 +1,34 @@
-# Restore the Skill Training Test course and its four-stage Learning Path
+# Restore Skill Training Test and lock down destructive resets
 
-## Confirmed cause
+## Why it happened
 
-You remembered correctly. The course previously had a complete demo pathway:
+You remembered correctly — the course did have a full four-stage path. The database audit shows exactly what happened:
 
-- 6 technical units: 3 Foundations and 3 Advanced Technical
-- 3 Career Readiness modules
-- 2 Capstone projects
-- AI Engineer target role and about 86 total hours
+- At **14:18 UTC today**, on the professor account, the course syllabus file (AI Engineer Bootcamp Syllabus) was deleted from the course materials screen.
+- Deleting the last syllabus doesn't just remove that file. It runs a cascade reset that deleted the 6 lesson-plan units, the saved lesson-plan files, the setup progress markers, and set the course back to unpublished.
+- Because an unpublished course is hidden from students, it vanished from your student course picker at the same moment the path emptied.
+- The Career Readiness modules (3) and Capstone projects (2) were not touched and are still in place. The Resources/Companies work did not cause this.
 
-At **14:18 UTC today**, the professor account ran the syllabus-reset action for **Skill Training Test**. The database audit confirms that action:
+Why it wasn't flagged: that delete needs no admin approval, sends no notification to you, and its warning lists the data types it wipes but never says the course will be unpublished and hidden from enrolled students.
 
-- deleted exactly 6 `lesson_plan_weeks`
-- removed the uploaded AI Engineer Bootcamp syllabus and saved lesson-plan files
-- cleared the published lesson-plan date
-- set the course to unpublished
-- reset three setup-progress markers
+## 1. Restore the course
 
-That explains both symptoms: the unpublished course disappeared from the student's course picker, and its six technical units disappeared from Learning Path. The 3 Career Readiness modules and 2 Capstone projects were not deleted and are still present. The Companies/Resources changes did not cause this reset.
+- Recreate the 6 technical units: Units 1-3 in Foundations at 8 hours each, Units 4-6 in Advanced Technical at 10 hours each, with AI Engineer subject matter, overviews and concepts matching the original demo structure.
+- Restore the published lesson-plan state and publish the course again.
+- Keep target role AI Engineer, Career Readiness at 12 hours (3 existing modules), Capstone at 20 hours (2 existing projects).
+- Point your student account's active course back to Skill Training Test.
+- Verify live in your student view: course appears in the picker, Learning Path shows all four stages with 3 + 3 units, Career Readiness and Capstone intact, Resources shows the 16 companies.
 
-## Restore now
+Note: the reset permanently deleted the original unit text, so wording inside each unit is rebuilt rather than recovered. Structure, stages, hours and topics will match what you had.
 
-1. Recreate the six demo technical units for Skill Training Test:
-   - Units 1–3 assigned to Foundations, 8 hours each
-   - Units 4–6 assigned to Advanced Technical, 10 hours each
-   - Restore their summaries, outcomes, activities, visibility, coding-week settings, and stage metadata as closely as possible from the earlier approved demo structure
-2. Restore the course's published lesson-plan state and publish the course again, keeping:
-   - target role: AI Engineer
-   - Career Readiness: 3 existing published modules, 12 hours
-   - Capstone: 2 existing published projects, 20 hours
-3. Keep the 16-company Resources library and all current career-readiness work intact.
-4. Set the student test account's active course back to Skill Training Test.
-5. Verify in the live student view that:
-   - Skill Training Test appears in the course picker
-   - Learning Path shows all four stages
-   - Foundations has 3 units
-   - Advanced Technical has 3 units
-   - Career Readiness and Capstone still show their existing content
-   - Resources still shows the 16 selected companies
+## 2. Stop this from happening again
 
-## Prevent a repeat
+- Require typing the course code to confirm before any syllabus delete that triggers a cascade.
+- Add an explicit line to the warning: this unpublishes the course and hides it from enrolled students.
+- Add an admin approval gate: a professor delete that would cascade is blocked unless an admin has enabled destructive resets for that course, with a clear message telling the professor to request approval.
+- Surface a reset history entry in the Admin Portal so every cascade is visible after the fact.
 
-Improve the syllabus-reset confirmation to state plainly that it will remove the published Learning Path and hide an unpublished course from students. Require the professor to confirm the course name before the destructive reset runs.
+## Technical notes
 
-## Important limitation
-
-The reset intentionally deleted the original saved lesson-plan rows and files. The audit preserves what was deleted and the prior pathway structure, but not a full backup of every sentence inside each unit. The restored path can match the prior six-unit structure, stages, hours, and AI Engineer subject matter; exact deleted wording cannot be guaranteed.
+- Restore is data-only: insert `lesson_plan_weeks` rows, set `courses.lesson_plan_published_at` and `published`, update `profiles.active_course_id` for your student account. No schema change for the restore itself.
+- The guard work touches `src/components/FileUploadZone.tsx` (typed confirmation, clearer warning) and `supabase/functions/wipe-syllabus-cascade/index.ts` (server-side approval check, so the block can't be bypassed), plus a small course-level flag column for the admin approval switch and an admin-facing view of `wipe_audit_log`.
