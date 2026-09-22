@@ -100,17 +100,6 @@ const SoftSkillsSetup = () => {
     }
   };
 
-  const saveTargetRole = async () => {
-    if (!courseId) return;
-    const { error } = await supabase
-      .from("courses")
-      .update({ target_role: targetRole.trim() || null } as any)
-      .eq("id", courseId);
-    if (error) {
-      toast({ title: "Could not save target role", description: error.message, variant: "destructive" });
-    }
-  };
-
   useEffect(() => {
     if (user && courseId) {
       void markStepOpened(user.id, "soft-skills", courseId, { source: "SoftSkillsSetup.open" });
