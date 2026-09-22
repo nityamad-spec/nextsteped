@@ -38,6 +38,8 @@ import {
 interface Props {
   targetRole?: string | null;
   courseId: string | null;
+  /** Professor-set prompts; empty means the section isn't set up yet. */
+  commonPrompts: CrQaPair[];
   onGoToPractice: () => void;
 }
 
