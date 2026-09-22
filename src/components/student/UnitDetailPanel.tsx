@@ -52,6 +52,10 @@ export interface UnitDetailPanelProps {
   onTakeQuiz: () => void;
   onGoToNextUnit?: () => void;
   practiceViaTerminal?: boolean;
+  /** Week videos shown as watch cards in the Study section. */
+  videos?: WeekVideo[];
+  watchedVideoIds?: ReadonlySet<string>;
+  onMarkVideoWatched?: (videoId: string) => void;
   /** Earlier units aren't at the mastery goal yet — read-only view. */
   locked?: boolean;
   /** Short line explaining what unlocks this unit. */
@@ -167,6 +171,9 @@ const UnitDetailPanel = ({
   onTakeQuiz,
   onGoToNextUnit,
   practiceViaTerminal = false,
+  videos = [],
+  watchedVideoIds,
+  onMarkVideoWatched,
   locked = false,
   unlockHint,
 }: UnitDetailPanelProps) => {
