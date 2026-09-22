@@ -2705,6 +2705,7 @@ export type Database = {
       }
       resource_companies: {
         Row: {
+          about: string | null
           apply_url: string | null
           created_at: string
           description: string | null
@@ -2714,14 +2715,19 @@ export type Database = {
           interview_format: string | null
           locations: string | null
           logo_color: string
+          look_for: string | null
           name: string
           pay_range: string | null
           position: number
+          pro_tip: string | null
           roles: string[]
+          rounds: Json
+          sources: string | null
           tier: string
           updated_at: string
         }
         Insert: {
+          about?: string | null
           apply_url?: string | null
           created_at?: string
           description?: string | null
@@ -2731,14 +2737,19 @@ export type Database = {
           interview_format?: string | null
           locations?: string | null
           logo_color?: string
+          look_for?: string | null
           name: string
           pay_range?: string | null
           position?: number
+          pro_tip?: string | null
           roles?: string[]
+          rounds?: Json
+          sources?: string | null
           tier?: string
           updated_at?: string
         }
         Update: {
+          about?: string | null
           apply_url?: string | null
           created_at?: string
           description?: string | null
@@ -2748,10 +2759,14 @@ export type Database = {
           interview_format?: string | null
           locations?: string | null
           logo_color?: string
+          look_for?: string | null
           name?: string
           pay_range?: string | null
           position?: number
+          pro_tip?: string | null
           roles?: string[]
+          rounds?: Json
+          sources?: string | null
           tier?: string
           updated_at?: string
         }
