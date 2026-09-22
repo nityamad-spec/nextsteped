@@ -20,6 +20,11 @@ export interface ResourceCompany {
   locations: string | null;
   apply_url: string | null;
   logo_color: string | null;
+  about: string | null;
+  rounds: string[];
+  look_for: string | null;
+  pro_tip: string | null;
+  sources: string | null;
   position: number;
 }
 
