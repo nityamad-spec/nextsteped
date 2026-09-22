@@ -39,6 +39,7 @@ import PracticeQuestions, { PracticeQuestion } from "@/components/PracticeQuesti
 import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 import CodingTerminalWidget from "@/components/CodingTerminalWidget";
 import { fetchPublishedExercises, selectTerminalExercise, shouldAutoSelectExercise, type PublishedCodingExercise, type CodingTestCase } from "@/lib/codingExercises";
+import { fetchPublishedDailyDsaQuestions } from "@/lib/dailyDsaQuestions";
 import MermaidDiagram from "@/components/MermaidDiagram";
 
 const markdownComponents = {
