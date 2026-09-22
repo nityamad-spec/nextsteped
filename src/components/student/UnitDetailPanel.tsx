@@ -20,6 +20,8 @@ import { computeUnitStage } from "@/lib/unitStage";
 import { getMasteryLevel, MASTERY_LABEL, MASTERY_SWATCH_CLASS } from "@/lib/masteryLevels";
 import type { LearningPlanWeek } from "@/hooks/useLearningPlan";
 import { languageLabel, type PublishedCodingExercise } from "@/lib/codingExercises";
+import WatchVideosRow from "@/components/student/WatchVideosRow";
+import type { WeekVideo } from "@/lib/weekVideos";
 
 export type UnitResource = LearningPlanWeek["resources"][number];
 

@@ -1008,6 +1008,9 @@ const TeachingPlan = ({ embedded = false }: TeachingPlanProps) => {
                               </div>
                             )}
 
+                            {isEmployment && courseId && (
+                              <WeekVideosEditor courseId={courseId} weekNumber={dp.day} />
+                            )}
 
                             {/* Lesson Description + Integrated Resources */}
                             <div className="space-y-3">
