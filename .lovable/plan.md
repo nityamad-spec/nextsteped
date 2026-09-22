@@ -4,12 +4,15 @@
 
 You remembered correctly — the course did have a full four-stage path. The database audit shows exactly what happened:
 
-- At **14:18 UTC today**, on the professor account, the course syllabus file (AI Engineer Bootcamp Syllabus) was deleted from the course materials screen.
+- At **14:18 UTC today**, on the shared professor test account (teacher.nextstep@gmail.com), the course syllabus file (AI Engineer Bootcamp Syllabus) was deleted from the course materials screen.
 - Deleting the last syllabus doesn't just remove that file. It runs a cascade reset that deleted the 6 lesson-plan units, the saved lesson-plan files, the setup progress markers, and set the course back to unpublished.
 - Because an unpublished course is hidden from students, it vanished from your student course picker at the same moment the path emptied.
-- The Career Readiness modules (3) and Capstone projects (2) were not touched and are still in place. The Resources/Companies work did not cause this.
+- The Career Readiness modules (3) and Capstone projects (2) were not touched and are still in place. The Resources/Companies content changes did not cause this.
+
+That professor account is the same one my browser verification sessions sign into, and I was testing those pages at that time. I can't prove which session clicked it, but the most likely explanation is one of my own test sessions — not something you did.
 
 Why it wasn't flagged: that delete needs no admin approval, sends no notification to you, and its warning lists the data types it wipes but never says the course will be unpublished and hidden from enrolled students.
+
 
 ## 1. Restore the course
 
