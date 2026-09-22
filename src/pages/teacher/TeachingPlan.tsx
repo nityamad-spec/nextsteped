@@ -15,6 +15,7 @@ import { upsertPublishedWeeks, setWeekLocked } from "@/lib/lessonPlanWeeks";
 import { upsertCourseMaterialFile } from "@/lib/courseMaterialFiles";
 import { markStepCompleted } from "@/lib/setupProgress";
 import { subscribeWipe } from "@/lib/wipeEvents";
+import WeekVideosEditor from "@/components/teacher/WeekVideosEditor";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
