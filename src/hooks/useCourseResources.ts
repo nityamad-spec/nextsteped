@@ -21,6 +21,11 @@ const toCompany = (row: any): ResourceCompany => ({
   locations: row.locations ?? null,
   apply_url: row.apply_url ?? null,
   logo_color: row.logo_color ?? null,
+  about: row.about ?? null,
+  rounds: Array.isArray(row.rounds) ? row.rounds.map((r: unknown) => String(r)) : [],
+  look_for: row.look_for ?? null,
+  pro_tip: row.pro_tip ?? null,
+  sources: row.sources ?? null,
   position: row.position ?? 0,
 });
 
