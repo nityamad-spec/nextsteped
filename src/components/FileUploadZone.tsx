@@ -1003,7 +1003,10 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         </div>
       )}
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setCascadeConfirmText(""); } }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             {deleteTarget && isLastSyllabusDelete(deleteTarget) ? (
@@ -1014,6 +1017,9 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
                 </AlertDialogTitle>
                 <AlertDialogDescription asChild>
                   <div className="space-y-2 text-sm">
+                    <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 font-medium text-destructive">
+                      This also unpublishes the course and hides it from every enrolled student until you publish it again.
+                    </p>
                     <p>
                       Deleting <span className="font-medium text-foreground">{deleteTarget.name}</span> will also wipe everything generated from it:
                     </p>
@@ -1025,7 +1031,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
                       <li>Downstream setup step progress (concepts, lesson plan, diagnostic, AI assistant, exam mode, enrollment)</li>
                     </ul>
                     <p className="text-xs text-muted-foreground">
-                      Your uploaded "Past Course Materials" are not affected.
+                      Your uploaded "Past Course Materials" are not affected. An admin must approve this reset for your course before it can run.
                     </p>
                   </div>
                 </AlertDialogDescription>
@@ -1039,10 +1045,29 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
               </>
             )}
           </AlertDialogHeader>
+          {deleteTarget && isLastSyllabusDelete(deleteTarget) && (
+            <div className="space-y-1.5">
+              <label htmlFor="cascade-confirm" className="text-xs font-medium text-foreground">
+                Type the course code <span className="font-semibold">{courseCode || "—"}</span> to confirm
+              </label>
+              <Input
+                id="cascade-confirm"
+                value={cascadeConfirmText}
+                onChange={(e) => setCascadeConfirmText(e.target.value)}
+                placeholder={courseCode || "Course code"}
+                autoComplete="off"
+              />
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={performDelete}
+              disabled={
+                !!deleteTarget &&
+                isLastSyllabusDelete(deleteTarget) &&
+                (!courseCode || cascadeConfirmText.trim().toUpperCase() !== courseCode.toUpperCase())
+              }
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteTarget && isLastSyllabusDelete(deleteTarget) ? "Delete and wipe generated data" : "Delete"}
@@ -1050,6 +1075,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
 
       {/* Cascade wipe progress */}
       <Dialog open={wipeOpen} onOpenChange={(open) => { if (!open && wipeFinished) setWipeOpen(false); }}>
