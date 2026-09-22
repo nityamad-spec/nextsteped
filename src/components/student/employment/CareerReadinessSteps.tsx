@@ -12,12 +12,13 @@ import CareerReadinessStepper from "./CareerReadinessStepper";
 import UnderstandBriefing from "./UnderstandBriefing";
 import StarStoryBuilder from "./StarStoryBuilder";
 import MockInterviewLab from "./MockInterviewLab";
-import { DEMO_STAR_STORIES, type StarStory } from "@/lib/starStories";
 
 interface Props {
   modules: SoftSkillsModuleView[];
   onStudy: (moduleTitle: string) => void;
   targetRole?: string | null;
+  /** Course the stories belong to. */
+  courseId?: string | null;
   /** Optional step to open initially (e.g. from a ?step= deep link). */
   initialStep?: string | null;
 }
