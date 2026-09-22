@@ -25,6 +25,13 @@ interface WipeRow {
   courseName?: string | null;
 }
 
+interface CourseGateRow {
+  id: string;
+  name: string;
+  course_code: string | null;
+  destructive_reset_allowed: boolean;
+}
+
 const WipeAuditTab = () => {
   const [rows, setRows] = useState<WipeRow[]>([]);
   const [filter, setFilter] = useState("");
@@ -32,11 +39,45 @@ const WipeAuditTab = () => {
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const toggle = (id: string) => setExpanded((e) => ({ ...e, [id]: !e[id] }));
 
+  // Reset-approval gate
+  const [gates, setGates] = useState<CourseGateRow[]>([]);
+  const [gateFilter, setGateFilter] = useState("");
+  const [savingGate, setSavingGate] = useState<string | null>(null);
+
   // Dry-run runner
   const [drCourseId, setDrCourseId] = useState("");
   const [drPath, setDrPath] = useState("");
   const [drWipeChat, setDrWipeChat] = useState(false);
   const [drRunning, setDrRunning] = useState(false);
+
+  const loadGates = async () => {
+    const { data } = await supabase
+      .from("courses")
+      .select("id, name, course_code, destructive_reset_allowed")
+      .order("name");
+    setGates((data as unknown as CourseGateRow[]) ?? []);
+  };
+
+  const setGate = async (courseId: string, allowed: boolean) => {
+    setSavingGate(courseId);
+    const { data: auth } = await supabase.auth.getUser();
+    const { error } = await supabase
+      .from("courses")
+      .update({
+        destructive_reset_allowed: allowed,
+        destructive_reset_allowed_by: allowed ? auth.user?.id ?? null : null,
+        destructive_reset_allowed_at: allowed ? new Date().toISOString() : null,
+      })
+      .eq("id", courseId);
+    setSavingGate(null);
+    if (error) {
+      toast.error(`Could not update: ${error.message}`);
+      return;
+    }
+    setGates((prev) => prev.map((g) => (g.id === courseId ? { ...g, destructive_reset_allowed: allowed } : g)));
+    toast.success(allowed ? "Reset approved for this course (single use)" : "Reset approval removed");
+  };
+
 
   const load = async () => {
     setLoading(true);
@@ -73,7 +114,7 @@ const WipeAuditTab = () => {
   };
 
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load(); void loadGates(); }, []);
 
   const runDryRun = async () => {
     if (!drCourseId || !drPath) {
@@ -102,9 +143,64 @@ const WipeAuditTab = () => {
   );
 
 
+  const gatesFiltered = gates.filter(
+    (g) =>
+      !gateFilter ||
+      g.name.toLowerCase().includes(gateFilter.toLowerCase()) ||
+      (g.course_code ?? "").toLowerCase().includes(gateFilter.toLowerCase()),
+  );
+
   return (
     <div className="space-y-4">
       <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Destructive reset approvals</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3">
+          <p className="text-xs text-muted-foreground">
+            Deleting a course syllabus wipes its lesson plan, concepts and question banks and unpublishes the course,
+            hiding it from enrolled students. Teachers can only run it on courses approved here. Each approval is used
+            up by one reset.
+          </p>
+          <Input
+            value={gateFilter}
+            onChange={(e) => setGateFilter(e.target.value)}
+            placeholder="Filter courses…"
+            className="max-w-sm"
+          />
+          <div className="divide-y rounded-md border">
+            {gatesFiltered.slice(0, 50).map((g) => (
+              <div key={g.id} className="flex items-center justify-between gap-3 px-3 py-2">
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium">{g.name}</div>
+                  <div className="text-xs text-muted-foreground">{g.course_code ?? "—"}</div>
+                </div>
+                <div className="flex items-center gap-2">
+                  {g.destructive_reset_allowed ? (
+                    <Badge variant="destructive">Reset approved</Badge>
+                  ) : (
+                    <Badge variant="secondary">Locked</Badge>
+                  )}
+                  <Button
+                    size="sm"
+                    variant={g.destructive_reset_allowed ? "outline" : "destructive"}
+                    disabled={savingGate === g.id}
+                    onClick={() => setGate(g.id, !g.destructive_reset_allowed)}
+                  >
+                    {g.destructive_reset_allowed ? "Revoke" : "Approve reset"}
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {gatesFiltered.length === 0 && (
+              <div className="px-3 py-6 text-center text-sm text-muted-foreground">No courses match.</div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+
         <CardHeader>
           <CardTitle className="text-base">Run dry-run wipe</CardTitle>
         </CardHeader>

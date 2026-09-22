@@ -6,6 +6,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, Di
 import { toast } from "sonner";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+
 import { markStepCompleted } from "@/lib/setupProgress";
 import { emitWipe } from "@/lib/wipeEvents";
 import { upsertCourseMaterialFile } from "@/lib/courseMaterialFiles";
@@ -90,6 +92,10 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const [pending, setPending] = useState<File[]>([]);
   const [confirmed, setConfirmed] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<UploadedFile | null>(null);
+  // Typed-confirmation state for the destructive syllabus cascade.
+  const [cascadeConfirmText, setCascadeConfirmText] = useState("");
+  const [courseCode, setCourseCode] = useState<string>("");
+
   // Per-file parse status keyed by storage_path. Only used for syllabus uploads.
   const [parseStatus, setParseStatus] = useState<Record<string, ParseStatus>>({});
   // Track start time per storage_path so we can show elapsed/remaining estimate.
@@ -147,10 +153,26 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const [wipeFinished, setWipeFinished] = useState(false);
   const [wipeError, setWipeError] = useState<string | null>(null);
 
+  // Course code is used as the typed confirmation phrase before a cascade wipe.
+  useEffect(() => {
+    if (folderType !== "syllabus" || !courseId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("courses")
+        .select("course_code")
+        .eq("id", courseId)
+        .maybeSingle();
+      if (!cancelled) setCourseCode((data?.course_code ?? "").trim());
+    })();
+    return () => { cancelled = true; };
+  }, [folderType, courseId]);
+
   // Bubble parse status to parent so it can gate Next button.
   useEffect(() => {
     onParseStatusChange?.(parseStatus);
   }, [parseStatus, onParseStatusChange]);
+
 
   // Tick `now` every 250ms while any syllabus operation is in flight, so the
   // progress bar + ETA stay live without re-rendering when nothing's happening.
@@ -983,7 +1005,10 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
         </div>
       )}
 
-      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => { if (!open) setDeleteTarget(null); }}>
+      <AlertDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => { if (!open) { setDeleteTarget(null); setCascadeConfirmText(""); } }}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
             {deleteTarget && isLastSyllabusDelete(deleteTarget) ? (
@@ -994,6 +1019,9 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
                 </AlertDialogTitle>
                 <AlertDialogDescription asChild>
                   <div className="space-y-2 text-sm">
+                    <p className="rounded-md border border-destructive/40 bg-destructive/5 p-2 font-medium text-destructive">
+                      This also unpublishes the course and hides it from every enrolled student until you publish it again.
+                    </p>
                     <p>
                       Deleting <span className="font-medium text-foreground">{deleteTarget.name}</span> will also wipe everything generated from it:
                     </p>
@@ -1005,7 +1033,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
                       <li>Downstream setup step progress (concepts, lesson plan, diagnostic, AI assistant, exam mode, enrollment)</li>
                     </ul>
                     <p className="text-xs text-muted-foreground">
-                      Your uploaded "Past Course Materials" are not affected.
+                      Your uploaded "Past Course Materials" are not affected. An admin must approve this reset for your course before it can run.
                     </p>
                   </div>
                 </AlertDialogDescription>
@@ -1019,10 +1047,29 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
               </>
             )}
           </AlertDialogHeader>
+          {deleteTarget && isLastSyllabusDelete(deleteTarget) && (
+            <div className="space-y-1.5">
+              <label htmlFor="cascade-confirm" className="text-xs font-medium text-foreground">
+                Type the course code <span className="font-semibold">{courseCode || "—"}</span> to confirm
+              </label>
+              <Input
+                id="cascade-confirm"
+                value={cascadeConfirmText}
+                onChange={(e) => setCascadeConfirmText(e.target.value)}
+                placeholder={courseCode || "Course code"}
+                autoComplete="off"
+              />
+            </div>
+          )}
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={performDelete}
+              disabled={
+                !!deleteTarget &&
+                isLastSyllabusDelete(deleteTarget) &&
+                (!courseCode || cascadeConfirmText.trim().toUpperCase() !== courseCode.toUpperCase())
+              }
               className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {deleteTarget && isLastSyllabusDelete(deleteTarget) ? "Delete and wipe generated data" : "Delete"}
@@ -1030,6 +1077,7 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
 
       {/* Cascade wipe progress */}
       <Dialog open={wipeOpen} onOpenChange={(open) => { if (!open && wipeFinished) setWipeOpen(false); }}>

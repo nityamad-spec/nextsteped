@@ -1654,6 +1654,9 @@ export type Database = {
           course_code: string | null
           course_type: string
           created_at: string
+          destructive_reset_allowed: boolean
+          destructive_reset_allowed_at: string | null
+          destructive_reset_allowed_by: string | null
           end_date: string | null
           enrollment_code: string
           enrollment_open: boolean
@@ -1694,6 +1697,9 @@ export type Database = {
           course_code?: string | null
           course_type?: string
           created_at?: string
+          destructive_reset_allowed?: boolean
+          destructive_reset_allowed_at?: string | null
+          destructive_reset_allowed_by?: string | null
           end_date?: string | null
           enrollment_code?: string
           enrollment_open?: boolean
@@ -1734,6 +1740,9 @@ export type Database = {
           course_code?: string | null
           course_type?: string
           created_at?: string
+          destructive_reset_allowed?: boolean
+          destructive_reset_allowed_at?: string | null
+          destructive_reset_allowed_by?: string | null
           end_date?: string | null
           enrollment_code?: string
           enrollment_open?: boolean
