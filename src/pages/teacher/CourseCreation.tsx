@@ -1302,7 +1302,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       }
     }
     toast({ title: "Lesson plan published", description: embedded ? "Changes are now live for students and the AI Teaching Assistant." : "You can keep editing future weeks anytime — just re-publish to push updates." });
-    if (!embedded) navigate("/teacher/setup/diagnostic");
+    if (!embedded) navigate("/teacher/setup/dsa-questions");
   };
 
   // ─── Generation phase UI ───

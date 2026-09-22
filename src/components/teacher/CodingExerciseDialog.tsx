@@ -63,6 +63,12 @@ interface CodingExerciseDialogProps {
   reviewIds?: string[];
   reviewIndex?: number;
   onReviewNavigate?: (index: number) => void;
+  /**
+   * Persistence overrides for banks other than `coding_exercises` (e.g. the
+   * Daily DSA bank). Default to the coding_exercises-backed helpers.
+   */
+  saveDraft?: (id: string, draft: ExerciseDraft, opts?: { markReviewed?: boolean }) => Promise<void>;
+  validateDraft?: (id: string, onProgress: (p: ValidationProgress) => void) => Promise<ValidationReport>;
 }
 
 const emptyDraft: ExerciseDraft = {
@@ -87,6 +93,8 @@ const CodingExerciseDialog = ({
   reviewIds,
   reviewIndex,
   onReviewNavigate,
+  saveDraft = updateExercise,
+  validateDraft = runExerciseValidation,
 }: CodingExerciseDialogProps) => {
   const { toast } = useToast();
   const [draft, setDraft] = useState<ExerciseDraft>(emptyDraft);
@@ -138,7 +146,7 @@ const CodingExerciseDialog = ({
       label: CODING_VALIDATION_CHECKS[0].label,
     });
     try {
-      const next = await runExerciseValidation(exercise.id, (p) => setValidationProgress(p));
+      const next = await validateDraft(exercise.id, (p) => setValidationProgress(p));
       setReport(next);
       onSaved();
       toast({
@@ -207,7 +215,7 @@ const CodingExerciseDialog = ({
   const handleSave = async (opts?: { markReviewed?: boolean; advance?: boolean }) => {
     setSaving(true);
     try {
-      await updateExercise(exercise.id, draft, { markReviewed: opts?.markReviewed });
+      await saveDraft(exercise.id, draft, { markReviewed: opts?.markReviewed });
       const missing = exerciseMissingFields({ ...exercise, ...draft });
       toast({
         title: opts?.markReviewed ? "Exercise reviewed" : "Exercise saved",

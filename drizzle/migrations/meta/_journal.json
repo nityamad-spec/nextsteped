@@ -50,6 +50,13 @@
       "when": 1790044988802,
       "tag": "0006_create_coding_attempts",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1790045741556,
+      "tag": "0007_create_daily_dsa_bank",
+      "breakpoints": true
     }
   ]
 }

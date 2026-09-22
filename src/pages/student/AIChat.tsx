@@ -39,6 +39,7 @@ import PracticeQuestions, { PracticeQuestion } from "@/components/PracticeQuesti
 import PracticeQuestionsWidget from "@/components/PracticeQuestionsWidget";
 import CodingTerminalWidget from "@/components/CodingTerminalWidget";
 import { fetchPublishedExercises, selectTerminalExercise, shouldAutoSelectExercise, type PublishedCodingExercise, type CodingTestCase } from "@/lib/codingExercises";
+import { fetchPublishedDailyDsaQuestions } from "@/lib/dailyDsaQuestions";
 import MermaidDiagram from "@/components/MermaidDiagram";
 
 const markdownComponents = {
@@ -253,6 +254,8 @@ const AIChat = () => {
     courseId: string;
     studentId: string;
     testCases: CodingTestCase[];
+    /** "daily" = professor-built Daily DSA bank (daily_dsa_questions/attempts). */
+    bank?: "daily";
   } | null>(null);
   // Freeform-practice assistant: unit the terminal was opened for, a prior
   // terminal-help session to resume, and saved terminal-help sessions.
@@ -524,7 +527,11 @@ const AIChat = () => {
       let exercise: PublishedCodingExercise | null = null;
       if (autoSelectExercise) {
         try {
-          const all = await fetchPublishedExercises(enrolledCourseId);
+          // Daily DSA picks from the professor-built daily bank; learning-path
+          // links keep using the weekly coding exercises.
+          const all = isDaily
+            ? await fetchPublishedDailyDsaQuestions(enrolledCourseId)
+            : await fetchPublishedExercises(enrolledCourseId);
           exercise = selectTerminalExercise(all, unit, exerciseParam);
         } catch (e) {
           console.error("[AIChat] failed to load coding exercise for terminal", e);
@@ -537,7 +544,7 @@ const AIChat = () => {
         exerciseStatement: exercise?.problem_statement ?? null,
       });
       // Daily DSA opens a graded terminal: the student submits against the
-      // exercise's visible test cases, and only a full pass marks it solved.
+      // question's visible test cases, and only a full pass marks it solved.
       setTerminalSubmission(
         isDaily && exercise && exercise.standard_test_cases.length > 0
           ? {
@@ -545,6 +552,7 @@ const AIChat = () => {
               courseId: enrolledCourseId,
               studentId: user.id,
               testCases: exercise.standard_test_cases,
+              bank: "daily",
             }
           : null,
       );
@@ -558,7 +566,8 @@ const AIChat = () => {
           student_id: user.id,
           course_id: enrolledCourseId,
           week_number: unit,
-          exercise_id: exercise?.id ?? null,
+          // Daily DSA questions live in their own bank — not a coding_exercises FK target.
+          exercise_id: isDaily ? null : (exercise?.id ?? null),
           language: exercise?.language ?? null,
         });
         if (error) console.error("[AIChat] terminal session log failed", error);
