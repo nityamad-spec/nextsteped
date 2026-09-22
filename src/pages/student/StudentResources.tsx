@@ -43,7 +43,7 @@ const ROUND_STYLES = [
 ] as const;
 
 function roundStyle(index: number): string {
-  return ROUND_STYLES[Math.min(index, ROUND_STYLES.length - 1)];
+  return ROUND_STYLES[Math.min(index, ROUND_STYLES.length - 1)] ?? ROUND_STYLES[3];
 }
 
 /** Half-star rating row for the 1–4 DSA difficulty scale. */

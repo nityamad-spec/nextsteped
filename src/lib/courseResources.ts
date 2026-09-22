@@ -68,15 +68,15 @@ export const TIER_FILTERS: { key: ResourceTier | "all"; label: string }[] = [
   { key: "startup", label: "Startup" },
 ];
 
-/** Badge styling per tier (used on the dark company cards). */
+/** Badge styling per tier. */
 export function tierBadgeClass(tier: ResourceTier): string {
   switch (tier) {
     case "tier_1":
-      return "bg-emerald-500/15 text-emerald-300 border-emerald-500/30";
+      return "border-success/30 bg-success/10 text-success";
     case "mid_tier":
-      return "bg-amber-500/15 text-amber-300 border-amber-500/30";
+      return "border-warning/40 bg-warning/10 text-foreground";
     case "startup":
-      return "bg-violet-500/15 text-violet-300 border-violet-500/30";
+      return "border-primary/30 bg-primary/10 text-primary";
   }
 }
 
