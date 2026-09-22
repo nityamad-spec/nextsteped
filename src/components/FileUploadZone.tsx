@@ -151,10 +151,26 @@ const FileUploadZone = ({ folderPath, accept, files, onFilesChange, courseId, te
   const [wipeFinished, setWipeFinished] = useState(false);
   const [wipeError, setWipeError] = useState<string | null>(null);
 
+  // Course code is used as the typed confirmation phrase before a cascade wipe.
+  useEffect(() => {
+    if (folderType !== "syllabus" || !courseId) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("courses")
+        .select("course_code")
+        .eq("id", courseId)
+        .maybeSingle();
+      if (!cancelled) setCourseCode((data?.course_code ?? "").trim());
+    })();
+    return () => { cancelled = true; };
+  }, [folderType, courseId]);
+
   // Bubble parse status to parent so it can gate Next button.
   useEffect(() => {
     onParseStatusChange?.(parseStatus);
   }, [parseStatus, onParseStatusChange]);
+
 
   // Tick `now` every 250ms while any syllabus operation is in flight, so the
   // progress bar + ETA stay live without re-rendering when nothing's happening.
