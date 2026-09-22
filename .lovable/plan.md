@@ -1,23 +1,48 @@
-# Bring the Skill Training Test course back into view
+# Restore the Skill Training Test course and its four-stage Learning Path
 
-## What's actually going on
+## Confirmed cause
 
-Two separate things, neither caused by the Resources work:
+You remembered correctly. The course previously had a complete demo pathway:
 
-1. **The course is missing from your student course list.** "Skill Training Test" is currently marked as not published. Students can only see published courses, so it disappears from the course picker even though your student account is still enrolled in it. Your other courses (Python, Cloud Engineering, etc.) are published, which is why only those show.
-2. **Learning Path is empty on that course.** The skilling course has no lesson plan weeks and no concepts saved against it, so there is nothing for the Learning Path to display. Python still has all 17 weeks and 13 concepts — nothing was deleted.
+- 6 technical units: 3 Foundations and 3 Advanced Technical
+- 3 Career Readiness modules
+- 2 Capstone projects
+- AI Engineer target role and about 86 total hours
 
-Also worth knowing: while testing the Companies page I switched your student test account's selected course. That's why the view looked different when you came back.
+At **14:18 UTC today**, the professor account ran the syllabus-reset action for **Skill Training Test**. The database audit confirms that action:
 
-## Proposed fix
+- deleted exactly 6 `lesson_plan_weeks`
+- removed the uploaded AI Engineer Bootcamp syllabus and saved lesson-plan files
+- cleared the published lesson-plan date
+- set the course to unpublished
+- reset three setup-progress markers
 
-1. **Publish the skilling course** so it reappears in the student course picker, using the professor Publish step in teacher setup (the normal flow, not a database edit).
-2. **Point your student account back** at whichever course you want open by default.
-3. **Fill the Learning Path** — the skilling course needs its lesson plan generated and published and its concepts saved, done through the teacher setup steps. Until that happens, Learning Path will stay empty by design.
-4. **Guard against the silent disappearance** — when a student is enrolled in a course that is no longer published, show it in the picker greyed out with a short "Not published yet" note instead of hiding it completely, so it never looks like the course vanished.
+That explains both symptoms: the unpublished course disappeared from the student's course picker, and its six technical units disappeared from Learning Path. The 3 Career Readiness modules and 2 Capstone projects were not deleted and are still present. The Companies/Resources changes did not cause this reset.
 
-## Technical notes
+## Restore now
 
-- `courses.published = false` for `Skill Training Test` (SK101, employment). The student-side SELECT policy on `courses` is `published = true`, so the inner join in `StudentCourseSwitcher` drops the row entirely.
-- Item 4 changes `StudentCourseSwitcher` to also read enrollments whose course row is not visible, rendering them as a disabled entry. This needs a small read path that returns the course name for enrolled-but-unpublished courses (a security-definer function or an added policy scoped to `is_active_enrollment`), so no unpublished course leaks to non-enrolled users.
-- `lesson_plan_weeks` and `concepts` counts for that course are both 0; no migration or data repair is involved, the content simply needs to be created in teacher setup.
+1. Recreate the six demo technical units for Skill Training Test:
+   - Units 1–3 assigned to Foundations, 8 hours each
+   - Units 4–6 assigned to Advanced Technical, 10 hours each
+   - Restore their summaries, outcomes, activities, visibility, coding-week settings, and stage metadata as closely as possible from the earlier approved demo structure
+2. Restore the course's published lesson-plan state and publish the course again, keeping:
+   - target role: AI Engineer
+   - Career Readiness: 3 existing published modules, 12 hours
+   - Capstone: 2 existing published projects, 20 hours
+3. Keep the 16-company Resources library and all current career-readiness work intact.
+4. Set the student test account's active course back to Skill Training Test.
+5. Verify in the live student view that:
+   - Skill Training Test appears in the course picker
+   - Learning Path shows all four stages
+   - Foundations has 3 units
+   - Advanced Technical has 3 units
+   - Career Readiness and Capstone still show their existing content
+   - Resources still shows the 16 selected companies
+
+## Prevent a repeat
+
+Improve the syllabus-reset confirmation to state plainly that it will remove the published Learning Path and hide an unpublished course from students. Require the professor to confirm the course name before the destructive reset runs.
+
+## Important limitation
+
+The reset intentionally deleted the original saved lesson-plan rows and files. The audit preserves what was deleted and the prior pathway structure, but not a full backup of every sentence inside each unit. The restored path can match the prior six-unit structure, stages, hours, and AI Engineer subject matter; exact deleted wording cannot be guaranteed.
