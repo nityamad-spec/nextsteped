@@ -448,7 +448,6 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           .maybeSingle();
         if (cancelled) return;
         if (existing?.id) {
-          setCourseLabel((existing as any).course_code ? `${(existing as any).name} (${(existing as any).course_code})` : (existing as any).name);
           setCourseLabel(existing.course_code ? `${existing.name} (${existing.course_code})` : existing.name);
           // Keep both remembered-course stores in sync.
           localStorage.setItem("currentCourseId", existing.id);
