@@ -16,6 +16,7 @@ interface NewsItem {
   headline: string;
   summary: string;
   concept: string;
+  region?: "india" | "global";
   url: string;
   source?: string;
   published_at?: string | null;
@@ -195,6 +196,11 @@ export function WhatsNewCard({ courseId, courseName }: WhatsNewCardProps) {
                       <Badge variant="secondary" className="text-[10px]">
                         {item.concept}
                       </Badge>
+                      {item.region === "india" && (
+                        <Badge variant="outline" className="text-[10px]">
+                          India
+                        </Badge>
+                      )}
                       <span className="text-[11px] text-muted-foreground">
                         {[item.source, date].filter(Boolean).join(" · ")}
                       </span>

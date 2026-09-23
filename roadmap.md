@@ -11,3 +11,5 @@
 - [x] Refine Resources comparison UI: distinct category/tier colors, multi-open compensation details, unique company marks, lighter interview-round progression
 - [x] Restore Skill Training Test course (6 units, republished) after accidental syllabus cascade reset
 - [x] Guard destructive syllabus resets: typed course-code confirmation, student-impact warning, admin approval gate, admin approvals list
+- [x] What's new: fix 401 auth failure in course-news (service-role token verification)
+- [x] What's new guardrails: role/topic-anchored searches with lesson-plan fallback, ~2:1 India/global mix, keyword pre-filter, job-board and social host blocklist, India badge on cards

@@ -51,7 +51,54 @@ interface SearchHit {
   description?: string;
   source?: string;
   published_at?: string | null;
+  region?: "india" | "global";
 }
+
+/** Common words that would make the relevance filter match everything. */
+const STOPWORDS = new Set([
+  "with",
+  "from",
+  "this",
+  "that",
+  "your",
+  "into",
+  "using",
+  "data",
+  "test",
+  "skill",
+  "skills",
+  "training",
+  "course",
+  "week",
+  "basics",
+  "introduction",
+  "fundamentals",
+  "essentials",
+  "foundations",
+  "systems",
+  "design",
+]);
+
+/** Social feeds and job boards are not news sources. */
+const BLOCKED_HOSTS = [
+  "facebook.com",
+  "instagram.com",
+  "x.com",
+  "twitter.com",
+  "reddit.com",
+  "pinterest.com",
+  "tiktok.com",
+  "youtube.com",
+  "linkedin.com",
+  "quora.com",
+  "indeed.com",
+  "naukri.com",
+  "glassdoor.com",
+  "ziprecruiter.com",
+  "jobs.lever.co",
+  "greenhouse.io",
+  "workday.com",
+];
 
 function hostOf(url: string): string {
   try {
@@ -94,7 +141,7 @@ async function firecrawlSearch(
       source: hostOf(String(r.url ?? "")),
       published_at: r.date ? String(r.date) : (r.publishedDate ? String(r.publishedDate) : null),
     }))
-    .filter((r) => r.url && r.title);
+    .filter((r) => r.url && r.title && !BLOCKED_HOSTS.some((h) => r.source === h || r.source.endsWith(`.${h}`)));
 }
 
 serve(async (req) => {
@@ -138,30 +185,67 @@ serve(async (req) => {
 
     const { data: course } = await admin
       .from("courses")
-      .select("name")
+      .select("name, target_role, course_type")
       .eq("id", courseId)
       .maybeSingle();
-    const courseName = (course as { name?: string } | null)?.name ?? "this course";
+    const courseRow = (course ?? {}) as {
+      name?: string;
+      target_role?: string | null;
+      course_type?: string | null;
+    };
+    const courseName = courseRow.name ?? "this course";
+    const targetRole = (courseRow.target_role ?? "").trim();
+    const courseType = (courseRow.course_type ?? "").trim();
 
     const { data: conceptRows } = await admin
       .from("concepts")
       .select("name")
       .eq("course_id", courseId);
-    const conceptNames = ((conceptRows ?? []) as { name: string }[])
+    let conceptNames = ((conceptRows ?? []) as { name: string }[])
       .map((c) => c.name)
       .filter(Boolean);
 
-    // Rotate the concept subset so repeat clicks surface different angles.
-    const shuffled = [...conceptNames].sort(() => Math.random() - 0.5);
+    // Fall back to the lesson plan when no concepts are saved, so searches
+    // always have real subject matter instead of just the course title.
+    const { data: weekRows } = await admin
+      .from("lesson_plan_weeks")
+      .select("week_name, concepts")
+      .eq("course_id", courseId)
+      .order("week_number", { ascending: true });
+    const weeks = (weekRows ?? []) as { week_name?: string; concepts?: unknown }[];
+    const weekTopics: string[] = [];
+    for (const w of weeks) {
+      if (w.week_name) weekTopics.push(String(w.week_name));
+      if (Array.isArray(w.concepts)) {
+        for (const c of w.concepts) if (c) weekTopics.push(String(c));
+      }
+    }
+    if (conceptNames.length === 0) conceptNames = weekTopics;
+
+    const topics = Array.from(new Set(conceptNames.filter(Boolean)));
+    const subject = targetRole || courseName;
+
+    // Rotate the topic subset so repeat clicks surface different angles.
+    const shuffled = [...topics].sort(() => Math.random() - 0.5);
     const picked = shuffled.slice(0, 6);
 
-    const queries: string[] = [`${courseName} news this week`];
-    for (const c of picked.slice(0, 3)) queries.push(`${c} news latest developments`);
+    // ~2:1 India-weighted query mix, all role/topic anchored.
+    const queries: { q: string; region: "india" | "global" }[] = [
+      { q: `${subject} India news this week`, region: "india" },
+      { q: `${subject} India hiring industry funding policy latest`, region: "india" },
+      { q: `${subject} major global developments this week`, region: "global" },
+    ];
+    if (picked[0]) queries.push({ q: `${picked[0]} India latest news`, region: "india" });
+    if (picked[1]) queries.push({ q: `${picked[1]} latest developments news`, region: "global" });
 
     const seen = new Set<string>();
     const hits: SearchHit[] = [];
     const results = await Promise.allSettled(
-      queries.map((q) => firecrawlSearch(FIRECRAWL_API_KEY, q, 6)),
+      queries.map((entry) =>
+        firecrawlSearch(FIRECRAWL_API_KEY, entry.q, 6).then((rows) =>
+          rows.map((r) => ({ ...r, region: entry.region }))
+        )
+      ),
     );
     let searchError: string | null = null;
     for (const r of results) {
@@ -176,7 +260,21 @@ serve(async (req) => {
       }
     }
 
-    if (hits.length === 0) {
+    // Keyword pre-filter: drop results that match neither the role nor any topic.
+    const keywords = Array.from(
+      new Set(
+        [subject, ...topics]
+          .flatMap((t) => t.toLowerCase().split(/[^a-z0-9+#.]+/))
+          .filter((w) => w.length > 3 && !STOPWORDS.has(w)),
+      ),
+    );
+    const relevant = keywords.length === 0 ? hits : hits.filter((h) => {
+      const text = `${h.title} ${h.description ?? ""}`.toLowerCase();
+      return keywords.some((k) => text.includes(k));
+    });
+    const usable = relevant.length >= 4 ? relevant : hits;
+
+    if (usable.length === 0) {
       return jsonResp(
         { error: searchError ?? "No recent news found for this course right now." },
         502,
@@ -184,38 +282,48 @@ serve(async (req) => {
     }
 
     const today = new Date().toISOString().slice(0, 10);
-    const sourceList = hits
-      .slice(0, 24)
+    const sourceList = usable
+      .slice(0, 28)
       .map((h, i) =>
-        `${i + 1}. TITLE: ${h.title}\n   URL: ${h.url}\n   SNIPPET: ${(h.description ?? "").slice(0, 400)}\n   DATE: ${h.published_at ?? "unknown"}`
+        `${i + 1}. TITLE: ${h.title}\n   URL: ${h.url}\n   SNIPPET: ${(h.description ?? "").slice(0, 400)}\n   DATE: ${h.published_at ?? "unknown"}\n   SEARCH_REGION: ${h.region ?? "global"}`
       )
       .join("\n");
 
+
     const systemPrompt =
       `You curate a short daily "What's new" digest for students taking the course "${courseName}". Today is ${today}.
+The students are based in India and are training for the role: ${targetRole || courseName}${
+        courseType ? ` (${courseType} track)` : ""
+      }.
 
-COURSE CONCEPTS:
-${conceptNames.length ? conceptNames.map((c) => `- ${c}`).join("\n") : "- (no concepts listed)"}
+COURSE TOPICS:
+${topics.length ? topics.map((c) => `- ${c}`).join("\n") : "- (no topics listed)"}
 
-You are given real web search results. Select the 4 to 6 most relevant, recent, and genuinely interesting items for a student of this course.
+You are given real web search results. Select the 4 to 6 most relevant, recent and genuinely useful items for a student training for this role.
 
 STRICT RULES
-- Use ONLY the given search results. Never invent a headline, URL, source, or date.
+- Use ONLY the given search results. Never invent a headline, URL, source or date.
 - Copy each item's URL EXACTLY as given.
-- Skip results that are not news/updates or that have nothing to do with the course concepts.
-- "concept" must be the course concept the item relates to, copied exactly from the concept list. If no concept fits closely, use the single best general label from the list; if the list is empty, use the course name.
-- "summary" is 1-2 short sentences (max 45 words) explaining what happened and why it matters to a student of this course.
+- REJECT anything that is not about this role, its industry or the course topics, even if it is recent or interesting. Generic "training", "skills programme", unrelated corporate or local news must be dropped. It is better to return 4 strong items than 6 weak ones.
+- REJECT job postings, individual vacancy listings, social media posts, forum threads, marketing pages and course adverts. Only real news and industry developments.
+- Prefer India-relevant stories: Indian companies, hiring and salaries, policy and regulation, product launches, funding, and research from India. Aim for about two thirds of the items to be India-relevant.
+- The remaining items must be MAJOR global developments in this field that an Indian student of this role should know about — not minor announcements.
+- "region" is "india" when the story is about India or an Indian company/policy, otherwise "global". Use the story content, not SEARCH_REGION, to decide.
+- "concept" must be the course topic the item relates to, copied exactly from the topic list. If none fits closely, use the best general label from the list; if the list is empty, use the role name.
+- "summary" is 1-2 short sentences (max 45 words) on what happened and why it matters to a student of this role.
 
 OUTPUT
 Return strict JSON with one key "items": an array of 4-6 objects each with:
 - "headline": string
 - "summary": string
 - "concept": string
+- "region": "india" or "global"
 - "url": string (exactly as given)
 - "source": string (publication or domain)
 - "published_at": string or null (as given)
 
 Output only JSON. No prose, no markdown fences.`;
+
 
     const aiRes = await loggedGatewayFetch(
       FUNCTION_NAME,
@@ -270,7 +378,10 @@ Output only JSON. No prose, no markdown fences.`;
         return {
           headline: String(o.headline ?? hit.title).slice(0, 200),
           summary: String(o.summary ?? "").slice(0, 400),
-          concept: String(o.concept ?? "").slice(0, 120) || courseName,
+          concept: String(o.concept ?? "").slice(0, 120) || subject,
+          region: String(o.region ?? hit.region ?? "global").toLowerCase() === "india"
+            ? "india"
+            : "global",
           url,
           source: String(o.source ?? hit.source ?? hostOf(url)),
           published_at: o.published_at ? String(o.published_at) : (hit.published_at ?? null),
@@ -279,7 +390,7 @@ Output only JSON. No prose, no markdown fences.`;
       .filter((x): x is NonNullable<typeof x> => !!x)
       .slice(0, 6);
 
-    if (items.length === 0) {
+    if (items.length < 3) {
       return jsonResp({ error: "No relevant news found for your course today." }, 404);
     }
 
