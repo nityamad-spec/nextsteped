@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 // SetupProgressBar removed — using top-left "Back to Course Setup" button instead.
 import { useAuth } from "@/contexts/AuthContext";
+import { useApp } from "@/contexts/AppContext";
 import { useCodingAccess } from "@/hooks/useCodingAccess";
 import CodingExercisesSection from "@/components/teacher/CodingExercisesSection";
 import { deleteWeekExercises, renumberExercises } from "@/lib/codingExercises";
@@ -129,11 +130,25 @@ type LessonPlanDraft = {
 const makeId = () => `i_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 
 // ─── Helpers ───
+// Concepts may be stored as plain strings (seeded/demo weeks) or as objects.
+const normalizeConcepts = (list: unknown): Concept[] =>
+  (Array.isArray(list) ? list : [])
+    .map((c: any) => {
+      if (typeof c === "string") {
+        return c.trim() ? ({ id: makeId(), name: c.trim(), brief_description: "", ai_suggested: false } as unknown as Concept) : null;
+      }
+      if (c && typeof c === "object" && typeof c.name === "string") {
+        return { ...c, id: c.id || makeId() } as Concept;
+      }
+      return null;
+    })
+    .filter((c): c is Concept => c !== null);
+
 const normalizeWeeks = (list: WeekPlan[]): WeekPlan[] =>
   list
     .slice()
     .sort((a, b) => (a.week || 0) - (b.week || 0))
-    .map((w, i) => ({ ...w, week: i + 1 }));
+    .map((w, i) => ({ ...w, week: i + 1, concepts: normalizeConcepts(w.concepts) }));
 
 const renumberWeeksInCurrentOrder = (list: WeekPlan[]): WeekPlan[] =>
   list.map((w, i) => ({ ...w, week: i + 1 }));
@@ -147,7 +162,13 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   const location = useLocation();
   const { user } = useAuth();
   const { toast } = useToast();
-  const initialCourseId = (location.state as any)?.courseId || localStorage.getItem("currentCourseId");
+  const { currentCourse, setCurrentCourse } = useApp();
+  // Same precedence as useTeacherCourseId (the setup checklist) so both
+  // pages always agree on which course is being edited.
+  const initialCourseId =
+    (location.state as any)?.courseId ||
+    currentCourse?.id ||
+    localStorage.getItem("currentCourseId");
   const [courseId, setCourseId] = useState<string | null>(initialCourseId);
   // Coding-exercise resources are only offered once an admin approves coding access.
   const { isApproved: codingApproved } = useCodingAccess(courseId);
