@@ -562,7 +562,7 @@ const CodingExerciseDialog = ({
                 <p className="text-sm font-medium">Test case check</p>
                 <p className="text-xs text-muted-foreground">
                   Runs the reference solution against every standard and hidden test case.
-                  Output must match exactly. Results aren't saved and never block publishing.
+                  Output must match (trailing spaces and newlines are ignored). Results aren't saved and never block publishing.
                 </p>
               </div>
               <Button

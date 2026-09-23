@@ -91,10 +91,32 @@ async function runOne(
   const status = String((data as any).status ?? "Finished");
 
   const message = compileOutput || stderr || runtimeMessage || "";
-  const errored = (typeof statusId === "number" && statusId !== 3) || message.length > 0;
-  const passed = !errored && actual === testCase.expected;
+  const errored =
+    (typeof statusId === "number" && statusId !== 3) ||
+    compileOutput.trim().length > 0 ||
+    stderr.trim().length > 0;
+  const passed = !errored && outputsMatch(actual, testCase.expected);
 
   return { ...testCase, passed, actual, message, status };
+}
+
+/** Judge-style normalisation: CRLF→LF, trailing spaces per line, trailing blank lines. */
+export function normalizeOutput(s: string): string {
+  return (s ?? "")
+    .replace(/\r\n?/g, "\n")
+    .split("\n")
+    .map((l) => l.replace(/[ \t]+$/, ""))
+    .join("\n")
+    .replace(/\n+$/, "");
+}
+
+export function outputsMatch(actual: string, expected: string): boolean {
+  return normalizeOutput(actual) === normalizeOutput(expected);
+}
+
+/** True when outputs differ exactly but match once whitespace is normalised. */
+export function differsOnlyInWhitespace(actual: string, expected: string): boolean {
+  return actual !== expected && outputsMatch(actual, expected);
 }
 
 /**
