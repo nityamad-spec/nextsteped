@@ -442,11 +442,17 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       if (courseId) {
         const { data: existing } = await supabase
           .from("courses")
-          .select("id")
+          .select("id, name, course_code")
           .eq("id", courseId)
           .maybeSingle();
         if (cancelled) return;
         if (existing?.id) {
+          setCourseLabel(existing.course_code ? `${existing.name} (${existing.course_code})` : existing.name);
+          // Keep both remembered-course stores in sync.
+          localStorage.setItem("currentCourseId", existing.id);
+          if (currentCourse?.id !== existing.id) {
+            setCurrentCourse({ id: existing.id, name: existing.name } as any);
+          }
           setResolvingCourse(false);
           return;
         }
@@ -638,7 +644,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
               is_exam_week: !!r.is_exam_week,
               exam_type: r.is_exam_week ? (r.exam_type ?? null) : null,
               is_coding_week: !!r.is_coding_week,
-              concepts: Array.isArray(r.concepts) ? r.concepts : [],
+              concepts: normalizeConcepts(r.concepts),
               resources: Array.isArray(r.resources) ? r.resources : [],
               locked: !!r.locked,
             }));
