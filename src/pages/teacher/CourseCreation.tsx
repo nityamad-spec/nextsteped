@@ -173,6 +173,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
   // Coding-exercise resources are only offered once an admin approves coding access.
   const { isApproved: codingApproved } = useCodingAccess(courseId);
   const [resolvingCourse, setResolvingCourse] = useState(!initialCourseId);
+  const [courseLabel, setCourseLabel] = useState<string | null>(null);
   const draftLocalKey = `lessonPlanDraftV2:${courseId || user?.id || "default"}`;
   const draftStoragePath = courseId ? canonicalDraftPath(courseId) : null;
 
@@ -447,6 +448,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
           .maybeSingle();
         if (cancelled) return;
         if (existing?.id) {
+          setCourseLabel((existing as any).course_code ? `${(existing as any).name} (${(existing as any).course_code})` : (existing as any).name);
           setCourseLabel(existing.course_code ? `${existing.name} (${existing.course_code})` : existing.name);
           // Keep both remembered-course stores in sync.
           localStorage.setItem("currentCourseId", existing.id);
@@ -1364,6 +1366,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
             </Button>
           )}
           <div className="text-center space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            {courseLabel ? <>Editing: <span className="text-foreground">{courseLabel}</span></> : null}
+          </p>
             <h1 className="font-heading text-2xl font-bold">
               AI <span className="text-primary">Lesson Plan</span>
             </h1>
@@ -1578,6 +1583,9 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
         )}
         {/* Header */}
         <div className="text-center space-y-2">
+          <p className="text-xs font-medium text-muted-foreground">
+            {courseLabel ? <>Editing: <span className="text-foreground">{courseLabel}</span></> : null}
+          </p>
           <h1 className="font-heading text-3xl font-bold">
             AI <span className="text-primary">Lesson Plan</span>
           </h1>
