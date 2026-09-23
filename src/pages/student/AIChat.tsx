@@ -255,7 +255,7 @@ const AIChat = () => {
     studentId: string;
     testCases: CodingTestCase[];
     /** "daily" = professor-built Daily DSA bank (daily_dsa_questions/attempts). */
-    bank?: "daily";
+    bank?: "daily" | "weekly";
     /** Daily-bank mastery context: first full pass on a concept-tagged question nudges mastery. */
     mastery?: { conceptId: string | null; bloomLevel?: number | null };
   } | null>(null);
