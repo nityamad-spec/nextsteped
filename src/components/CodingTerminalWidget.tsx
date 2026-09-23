@@ -5,11 +5,17 @@ import { Terminal, Play, RotateCcw, X, Loader2, ChevronDown, ChevronUp, FileCode
 import TerminalAssistantPanel from "@/components/student/TerminalAssistantPanel";
 import { supabase } from "@/integrations/supabase/client";
 import type { CodingTestCase } from "@/lib/codingExercises";
-import {
-  runCodeAgainstTestCases,
-  type TestRunCase,
-  type TestRunResult,
-} from "@/lib/codingExerciseTestRun";
+
+export interface SubmitCaseResult {
+  kind: "standard" | "hidden";
+  index: number;
+  passed: boolean;
+  status: string;
+  input?: string;
+  expected?: string;
+  actual?: string;
+  message?: string;
+}
 import { useToast } from "@/hooks/use-toast";
 
 // TODO(judge0): This approved-languages list will later be sourced from a
@@ -62,7 +68,7 @@ interface CodingTerminalWidgetProps {
     testCases: CodingTestCase[];
     /** "daily" = Daily DSA bank: attempts recorded in daily_dsa_attempts, and a
      *  passing attempt is what marks the question solved (no progress row). */
-    bank?: "daily";
+    bank?: "daily" | "weekly";
     /**
      * Daily-bank mastery context: a first full pass on a concept-tagged
      * question nudges mastery at practice strength. Pass through from the
@@ -100,11 +106,12 @@ export default function CodingTerminalWidget({
       : (APPROVED_LANGUAGES.find((l) => l.id === initialLangId)?.starter ?? APPROVED_LANGUAGES[0].starter);
   const [code, setCode] = useState<string>(initialStarter);
   const [output, setOutput] = useState<string>("");
+  const [stdin, setStdin] = useState<string>(submission?.testCases?.[0]?.input ?? "");
   const [isRunning, setIsRunning] = useState(false);
   const [showStatement, setShowStatement] = useState(hasExercise);
   const [showAssistant, setShowAssistant] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [testResults, setTestResults] = useState<TestRunResult[] | null>(null);
+  const [testResults, setTestResults] = useState<SubmitCaseResult[] | null>(null);
   const [solved, setSolved] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // Latest values for the assistant's per-send context snapshot.
@@ -113,66 +120,41 @@ export default function CodingTerminalWidget({
   const outputRef = useRef(output);
   outputRef.current = output;
 
-  const canSubmit = !!submission && submission.testCases.length > 0;
+  const canSubmit = !!submission;
 
   const handleSubmit = async () => {
     if (!submission || isSubmitting) return;
     setIsSubmitting(true);
     setTestResults(null);
-    const cases: TestRunCase[] = submission.testCases.map((t, i) => ({
-      kind: "standard" as const,
-      index: i + 1,
-      input: t.input ?? "",
-      expected: t.expected_output ?? "",
-    }));
     try {
-      const results = await runCodeAgainstTestCases(languageId, code, cases);
+      const { data, error } = await supabase.functions.invoke("submit-coding-solution", {
+        body: {
+          bank: submission.bank === "daily" ? "daily" : "weekly",
+          exerciseId: submission.exerciseId,
+          language: languageId,
+          code,
+        },
+      });
+      if (error || data?.error) {
+        let msg = data?.error as string | undefined;
+        if (!msg && error) {
+          try {
+            msg = (await (error as any).context?.json?.())?.error;
+          } catch {
+            /* ignore */
+          }
+        }
+        throw new Error(msg || "Please try again in a moment.");
+      }
+      const results = (data?.results ?? []) as SubmitCaseResult[];
       setTestResults(results);
       const passedCount = results.filter((r) => r.passed).length;
-      const allPassed = passedCount === results.length && results.length > 0;
+      const allPassed = !!data?.passed;
       setSolved(allPassed);
 
-      const attemptPayload = {
-        student_id: submission.studentId,
-        course_id: submission.courseId,
-        submitted_code: code,
-        language: languageId,
-        passed: allPassed,
-        cases_passed: passedCount,
-        cases_total: results.length,
-        results: results.map((r) => ({
-          index: r.index,
-          passed: r.passed,
-          status: r.status,
-        })) as any,
-      };
-      const { error: attemptError } =
-        submission.bank === "daily"
-          ? await supabase
-              .from("daily_dsa_attempts")
-              .insert({ ...attemptPayload, question_id: submission.exerciseId })
-          : await supabase
-              .from("coding_attempts")
-              .insert({ ...attemptPayload, exercise_id: submission.exerciseId });
-      if (attemptError) console.error("[terminal] attempt log failed", attemptError);
-
       if (allPassed) {
-        // Daily-bank questions are marked solved by the passing attempt itself;
-        // weekly exercises still record a progress row.
-        if (submission.bank !== "daily") {
-          const { error: progressError } = await supabase
-            .from("coding_exercise_progress")
-            .upsert(
-              {
-                student_id: submission.studentId,
-                exercise_id: submission.exerciseId,
-                course_id: submission.courseId,
-                source: "daily_pass",
-              },
-              { onConflict: "student_id,exercise_id", ignoreDuplicates: true },
-            );
-          if (progressError) console.error("[terminal] progress log failed", progressError);
-        } else if (submission.mastery?.conceptId) {
+        // The attempt (and weekly progress row) are recorded server-side.
+        if (submission.bank === "daily" && submission.mastery?.conceptId) {
           // Concept-tagged daily question: first full pass nudges mastery at
           // practice strength (the update-mastery function caps practice
           // evidence at Proficient). Re-solves never re-nudge.
@@ -207,7 +189,9 @@ export default function CodingTerminalWidget({
         submission.onSolved?.();
         toast({
           title: "Solved!",
-          description: "All test cases passed — today's problem is done.",
+          description: submission.bank === "daily"
+            ? "All test cases passed — today's problem is done."
+            : "All test cases passed — exercise marked as solved.",
         });
       } else {
         toast({
@@ -250,7 +234,7 @@ export default function CodingTerminalWidget({
     setOutput("");
     try {
       const { data, error } = await supabase.functions.invoke("run-code", {
-        body: { language: languageId, code },
+        body: { language: languageId, code, stdin },
       });
       if (error) {
         const status = (error as { context?: { status?: number } })?.context?.status;
@@ -395,8 +379,22 @@ export default function CodingTerminalWidget({
           />
         </div>
 
-        {/* Output pane */}
-        <div className="flex-[2] min-h-0 flex flex-col">
+        {/* Custom input + output */}
+        <div className="flex-[2] min-h-0 flex flex-col sm:flex-row">
+        <div className="sm:w-2/5 min-h-0 flex flex-col border-b sm:border-b-0 sm:border-r">
+          <div className="px-4 sm:px-6 py-2 text-xs uppercase tracking-wide text-muted-foreground border-b bg-muted/40">
+            Custom input
+          </div>
+          <textarea
+            value={stdin}
+            onChange={(e) => setStdin(e.target.value)}
+            spellCheck={false}
+            aria-label="Custom input"
+            className="flex-1 min-h-[80px] w-full resize-none bg-background text-foreground font-mono text-sm leading-6 px-4 sm:px-6 py-3 outline-none whitespace-pre"
+            placeholder="Type the input your program reads, then press Run."
+          />
+        </div>
+        <div className="flex-1 min-h-0 min-w-0 flex flex-col">
           <div className="px-4 sm:px-6 py-2 text-xs uppercase tracking-wide text-muted-foreground border-b bg-muted/40 flex items-center justify-between">
             <span>Output</span>
             {isRunning && (
@@ -413,12 +411,16 @@ export default function CodingTerminalWidget({
             </pre>
           </div>
         </div>
+        </div>
 
         {/* Test-case results (graded submissions only) */}
         {canSubmit && (
           <div className="border-t bg-background">
             <div className="px-4 sm:px-6 py-2 text-xs uppercase tracking-wide text-muted-foreground border-b bg-muted/40 flex items-center justify-between">
-              <span>Test cases ({submission!.testCases.length})</span>
+              <span>
+                Test cases
+                {testResults && ` — ${testResults.filter((r) => r.passed).length} of ${testResults.length} passed`}
+              </span>
               {solved && (
                 <span className="flex items-center gap-1 text-xs normal-case tracking-normal text-primary">
                   <CheckCircle2 className="h-3.5 w-3.5" /> Solved
@@ -428,21 +430,26 @@ export default function CodingTerminalWidget({
             <div className="max-h-40 overflow-auto px-4 sm:px-6 py-2">
               {!testResults && (
                 <p className="py-1 text-sm text-muted-foreground">
-                  Submit your solution to check it against every test case.
+                  Submit to check your code against every test case, including hidden ones.
                 </p>
               )}
               {testResults?.map((r) => (
-                <div key={r.index} className="flex items-start gap-2 py-1 text-sm">
+                <div key={`${r.kind}-${r.index}`} className="flex items-start gap-2 py-1 text-sm">
                   {r.passed ? (
                     <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
                   ) : (
                     <XCircle className="mt-0.5 h-4 w-4 shrink-0 text-destructive" />
                   )}
-                  <span className="font-medium">Case {r.index}</span>
-                  {!r.passed && (
+                  <span className="font-medium shrink-0">
+                    {r.kind === "hidden" ? `Hidden case ${r.index}` : `Case ${r.index}`}
+                  </span>
+                  {!r.passed && r.kind === "standard" && (
                     <span className="min-w-0 flex-1 truncate font-mono text-xs text-muted-foreground">
-                      expected “{r.expected.trim()}” · got “{(r.message || r.actual).trim()}”
+                      expected “{(r.expected ?? "").trim()}” · got “{(r.message || r.actual || "").trim()}”
                     </span>
+                  )}
+                  {!r.passed && r.kind === "hidden" && (
+                    <span className="text-xs text-muted-foreground">{r.status}</span>
                   )}
                 </div>
               ))}

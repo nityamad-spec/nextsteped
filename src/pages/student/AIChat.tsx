@@ -255,7 +255,7 @@ const AIChat = () => {
     studentId: string;
     testCases: CodingTestCase[];
     /** "daily" = professor-built Daily DSA bank (daily_dsa_questions/attempts). */
-    bank?: "daily";
+    bank?: "daily" | "weekly";
     /** Daily-bank mastery context: first full pass on a concept-tagged question nudges mastery. */
     mastery?: { conceptId: string | null; bloomLevel?: number | null };
   } | null>(null);
@@ -545,20 +545,22 @@ const AIChat = () => {
         exerciseTitle: exercise?.title ?? null,
         exerciseStatement: exercise?.problem_statement ?? null,
       });
-      // Daily DSA opens a graded terminal: the student submits against the
-      // question's visible test cases, and only a full pass marks it solved.
+      // Any loaded exercise opens a graded terminal: Submit runs the code
+      // server-side against every visible + hidden test case.
       setTerminalSubmission(
-        isDaily && exercise && exercise.standard_test_cases.length > 0
+        exercise
           ? {
               exerciseId: exercise.id,
               courseId: enrolledCourseId,
               studentId: user.id,
               testCases: exercise.standard_test_cases,
-              bank: "daily",
-              mastery: {
-                conceptId: (exercise as any).concept_id ?? null,
-                bloomLevel: (exercise as any).bloom_level ?? null,
-              },
+              bank: isDaily ? "daily" : "weekly",
+              mastery: isDaily
+                ? {
+                    conceptId: (exercise as any).concept_id ?? null,
+                    bloomLevel: (exercise as any).bloom_level ?? null,
+                  }
+                : undefined,
             }
           : null,
       );
