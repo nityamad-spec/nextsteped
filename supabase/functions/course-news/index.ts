@@ -120,7 +120,7 @@ async function firecrawlSearch(
       source: hostOf(String(r.url ?? "")),
       published_at: r.date ? String(r.date) : (r.publishedDate ? String(r.publishedDate) : null),
     }))
-    .filter((r) => r.url && r.title);
+    .filter((r) => r.url && r.title && !BLOCKED_HOSTS.some((h) => r.source === h || r.source.endsWith(`.${h}`)));
 }
 
 serve(async (req) => {
