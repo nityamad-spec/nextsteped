@@ -486,6 +486,7 @@ const CourseCreation = ({ embedded = false }: CourseCreationProps = {}) => {
       if (data?.id) {
         setCourseId(data.id);
         localStorage.setItem("currentCourseId", data.id);
+        setCurrentCourse({ id: data.id, name: (data as any).name ?? "" } as any);
       }
       setResolvingCourse(false);
     })();

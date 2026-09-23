@@ -123,8 +123,16 @@ function TeacherRedirect() {
         owned[0]?.id ||
         collab[0]?.course_id ||
         null;
-      if (preferred && typeof window !== "undefined") {
+      // Only pick a default when the remembered course isn't one this teacher
+      // can access — never silently switch away from the course they chose.
+      const accessible = new Set<string>([
+        ...owned.map((c: any) => c.id),
+        ...collab.map((c: any) => c.course_id),
+      ]);
+      const remembered = typeof window !== "undefined" ? localStorage.getItem("currentCourseId") : null;
+      if (preferred && typeof window !== "undefined" && !(remembered && accessible.has(remembered))) {
         localStorage.setItem("currentCourseId", preferred);
+        localStorage.removeItem("ns_current_course");
       }
 
       setChecking(false);
