@@ -16,6 +16,7 @@ interface NewsItem {
   headline: string;
   summary: string;
   concept: string;
+  region?: "india" | "global";
   url: string;
   source?: string;
   published_at?: string | null;
