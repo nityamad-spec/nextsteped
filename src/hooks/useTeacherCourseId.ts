@@ -45,9 +45,12 @@ export function useTeacherCourseId(): string | null {
         if (data) {
           lastChecked.current = candidate;
           setValidatedId(candidate);
-          // Sync AppContext name if it drifted.
+          // Keep both remembered-course stores pointing at the same course so
+          // every teacher page (setup checklist, lesson plan, …) agrees.
           if (!currentCourse || currentCourse.id !== data.id) {
             setCurrentCourse({ id: data.id, name: data.name } as Course);
+          }
+          if (localStorage.getItem("currentCourseId") !== data.id) {
             localStorage.setItem("currentCourseId", data.id);
           }
           return;
