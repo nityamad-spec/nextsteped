@@ -305,6 +305,7 @@ STRICT RULES
 - Use ONLY the given search results. Never invent a headline, URL, source or date.
 - Copy each item's URL EXACTLY as given.
 - REJECT anything that is not about this role, its industry or the course topics, even if it is recent or interesting. Generic "training", "skills programme", unrelated corporate or local news must be dropped. It is better to return 4 strong items than 6 weak ones.
+- REJECT job postings, individual vacancy listings, social media posts, forum threads, marketing pages and course adverts. Only real news and industry developments.
 - Prefer India-relevant stories: Indian companies, hiring and salaries, policy and regulation, product launches, funding, and research from India. Aim for about two thirds of the items to be India-relevant.
 - The remaining items must be MAJOR global developments in this field that an Indian student of this role should know about — not minor announcements.
 - "region" is "india" when the story is about India or an Indian company/policy, otherwise "global". Use the story content, not SEARCH_REGION, to decide.
