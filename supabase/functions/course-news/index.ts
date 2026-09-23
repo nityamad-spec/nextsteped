@@ -245,29 +245,37 @@ serve(async (req) => {
 
     const systemPrompt =
       `You curate a short daily "What's new" digest for students taking the course "${courseName}". Today is ${today}.
+The students are based in India and are training for the role: ${targetRole || courseName}${
+        courseType ? ` (${courseType} track)` : ""
+      }.
 
-COURSE CONCEPTS:
-${conceptNames.length ? conceptNames.map((c) => `- ${c}`).join("\n") : "- (no concepts listed)"}
+COURSE TOPICS:
+${topics.length ? topics.map((c) => `- ${c}`).join("\n") : "- (no topics listed)"}
 
-You are given real web search results. Select the 4 to 6 most relevant, recent, and genuinely interesting items for a student of this course.
+You are given real web search results. Select the 4 to 6 most relevant, recent and genuinely useful items for a student training for this role.
 
 STRICT RULES
-- Use ONLY the given search results. Never invent a headline, URL, source, or date.
+- Use ONLY the given search results. Never invent a headline, URL, source or date.
 - Copy each item's URL EXACTLY as given.
-- Skip results that are not news/updates or that have nothing to do with the course concepts.
-- "concept" must be the course concept the item relates to, copied exactly from the concept list. If no concept fits closely, use the single best general label from the list; if the list is empty, use the course name.
-- "summary" is 1-2 short sentences (max 45 words) explaining what happened and why it matters to a student of this course.
+- REJECT anything that is not about this role, its industry or the course topics, even if it is recent or interesting. Generic "training", "skills programme", unrelated corporate or local news must be dropped. It is better to return 4 strong items than 6 weak ones.
+- Prefer India-relevant stories: Indian companies, hiring and salaries, policy and regulation, product launches, funding, and research from India. Aim for about two thirds of the items to be India-relevant.
+- The remaining items must be MAJOR global developments in this field that an Indian student of this role should know about — not minor announcements.
+- "region" is "india" when the story is about India or an Indian company/policy, otherwise "global". Use the story content, not SEARCH_REGION, to decide.
+- "concept" must be the course topic the item relates to, copied exactly from the topic list. If none fits closely, use the best general label from the list; if the list is empty, use the role name.
+- "summary" is 1-2 short sentences (max 45 words) on what happened and why it matters to a student of this role.
 
 OUTPUT
 Return strict JSON with one key "items": an array of 4-6 objects each with:
 - "headline": string
 - "summary": string
 - "concept": string
+- "region": "india" or "global"
 - "url": string (exactly as given)
 - "source": string (publication or domain)
 - "published_at": string or null (as given)
 
 Output only JSON. No prose, no markdown fences.`;
+
 
     const aiRes = await loggedGatewayFetch(
       FUNCTION_NAME,
