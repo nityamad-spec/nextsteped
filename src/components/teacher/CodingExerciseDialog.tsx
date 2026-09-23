@@ -152,6 +152,8 @@ const CodingExerciseDialog = ({
       setTestError(null);
       setTestProgress(null);
       setOpenFailure(null);
+      setRegenResult(null);
+      setRegenError(null);
     }
   }, [open, exercise]);
 
