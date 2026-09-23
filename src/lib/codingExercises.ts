@@ -404,3 +404,129 @@ export async function renumberExercises(
     if (upErr) throw upErr;
   }
 }
+
+// ─── Reference solution regeneration (regenerate-reference-solution) ───
+
+/** Keep in sync with SOLUTION_CHECKS in the edge function. */
+export const SOLUTION_CHECKS = [
+  { id: "reads_input", label: "Reads input exactly as specified" },
+  { id: "prints_output", label: "Prints output exactly as specified" },
+  { id: "constraints", label: "Respects the constraints" },
+  { id: "no_extra_io", label: "No extra prompts or prints" },
+  { id: "course_level", label: "Uses only what the course has taught" },
+] as const;
+
+export interface RegenCaseResult {
+  kind: "example" | "standard" | "hidden";
+  index: number;
+  input: string;
+  expected: string;
+  actual: string;
+  status: string;
+  message: string;
+  passed: boolean;
+}
+
+export interface ReferenceRegenResult {
+  solution: string;
+  notes: string;
+  cases: RegenCaseResult[];
+  checks: ValidationCheck[];
+  attempts: number;
+}
+
+export interface RegenProgress {
+  stage: "writing" | "running" | "reviewing";
+  label: string;
+  completed?: number;
+  total?: number;
+}
+
+export type RegenSummary = "verified" | "needs_review" | "failed";
+
+export function summariseRegen(r: Pick<ReferenceRegenResult, "cases" | "checks">): RegenSummary {
+  const allPass = r.cases.length > 0 && r.cases.every((c) => c.passed);
+  if (!allPass) return "failed";
+  if (r.checks.some((c) => c.status === "fail")) return "needs_review";
+  if (r.checks.some((c) => c.status === "warning")) return "needs_review";
+  return "verified";
+}
+
+export function regenerateBlockedReason(draft: ExerciseDraft): string | null {
+  if (!draft.problem_statement.trim()) return "Add a problem statement first.";
+  if (!draft.input_spec.trim()) return "Add an input specification first.";
+  if (!draft.output_spec.trim()) return "Add an output specification first.";
+  const n = draft.examples.length + draft.standard_test_cases.length + draft.hidden_test_cases.length;
+  if (n === 0) return "Add at least one example or test case first.";
+  return null;
+}
+
+export const canRegenerateSolution = (draft: ExerciseDraft) => regenerateBlockedReason(draft) === null;
+
+export async function regenerateReferenceSolution(
+  courseId: string,
+  weekNumber: number | null,
+  draft: ExerciseDraft,
+  onProgress: (p: RegenProgress) => void,
+): Promise<ReferenceRegenResult> {
+  const { data: sess } = await supabase.auth.getSession();
+  const accessToken = sess.session?.access_token;
+  if (!accessToken) throw new Error("Your session expired. Please sign in again.");
+
+  const resp = await fetch(
+    `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/regenerate-reference-solution`,
+    {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+      },
+      body: JSON.stringify({
+        course_id: courseId,
+        week_number: weekNumber,
+        draft: {
+          ...draft,
+          examples: draft.examples.map((e) => ({
+            input: e.input ?? "",
+            output: e.output ?? "",
+            explanation: e.explanation ?? null,
+          })),
+        },
+      }),
+    },
+  );
+  if (!resp.ok || !resp.body) {
+    const text = await resp.text().catch(() => "");
+    throw new Error(text || `HTTP ${resp.status}`);
+  }
+  const reader = resp.body.getReader();
+  const decoder = new TextDecoder();
+  let buf = "";
+  let finalFrame: any = null;
+  while (true) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += decoder.decode(value, { stream: true });
+    let nl: number;
+    while ((nl = buf.indexOf("\n")) >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      if (!line) continue;
+      let frame: any;
+      try {
+        frame = JSON.parse(line);
+      } catch {
+        continue;
+      }
+      if (frame?.type === "progress") onProgress(frame as RegenProgress);
+      else if (frame?.type === "result" || frame?.type === "error") finalFrame = frame;
+    }
+  }
+  if (!finalFrame) throw new Error("Regeneration was interrupted. Please try again.");
+  if (finalFrame.type === "error") throw new Error(finalFrame.message || "Regeneration failed.");
+  const payload = finalFrame.payload ?? {};
+  if (payload.error) throw new Error(payload.error);
+  if (!payload.result?.solution) throw new Error("No solution was returned.");
+  return payload.result as ReferenceRegenResult;
+}

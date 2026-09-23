@@ -60,3 +60,29 @@ describe("shouldAutoSelectExercise", () => {
     expect(shouldAutoSelectExercise("0")).toBe(true);
   });
 });
+
+import { regenerateBlockedReason, summariseRegen } from "@/lib/codingExercises";
+
+describe("reference solution regeneration helpers", () => {
+  const base = {
+    title: "t", problem_statement: "p", language: "python", input_spec: "i", output_spec: "o",
+    constraints: null, examples: [], starter_code: "", standard_test_cases: [{ input: "1", expected_output: "1" }],
+    reference_solution: "", hidden_test_cases: [],
+  } as any;
+  const pass = { passed: true } as any;
+  const fail = { passed: false } as any;
+  const chk = (status: string) => ({ id: "x", label: "x", status, note: "" }) as any;
+
+  it("blocks without specs or cases", () => {
+    expect(regenerateBlockedReason({ ...base, input_spec: " " })).toMatch(/input/i);
+    expect(regenerateBlockedReason({ ...base, standard_test_cases: [] })).toMatch(/test case/i);
+    expect(regenerateBlockedReason(base)).toBeNull();
+  });
+
+  it("summarises verified / needs review / failed", () => {
+    expect(summariseRegen({ cases: [pass], checks: [chk("pass")] })).toBe("verified");
+    expect(summariseRegen({ cases: [pass], checks: [chk("warning")] })).toBe("needs_review");
+    expect(summariseRegen({ cases: [pass, fail], checks: [chk("pass")] })).toBe("failed");
+    expect(summariseRegen({ cases: [], checks: [] })).toBe("failed");
+  });
+});

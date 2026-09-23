@@ -12,6 +12,7 @@ import {
   PlayCircle,
   Plus,
   ShieldCheck,
+  Sparkles,
   Trash2,
   XCircle,
 } from "lucide-react";
@@ -34,10 +35,15 @@ import {
   CODING_LANGUAGES,
   CODING_VALIDATION_CHECKS,
   exerciseMissingFields,
+  regenerateBlockedReason,
+  regenerateReferenceSolution,
   runExerciseValidation,
+  summariseRegen,
   updateExercise,
   type CodingExercise,
   type ExerciseDraft,
+  type ReferenceRegenResult,
+  type RegenProgress,
   type ValidationProgress,
   type ValidationReport,
 } from "@/lib/codingExercises";
@@ -117,6 +123,10 @@ const CodingExerciseDialog = ({
   const [testResults, setTestResults] = useState<TestRunResult[] | null>(null);
   const [testError, setTestError] = useState<string | null>(null);
   const [openFailure, setOpenFailure] = useState<string | null>(null);
+  const [regenRunning, setRegenRunning] = useState(false);
+  const [regenProgress, setRegenProgress] = useState<RegenProgress | null>(null);
+  const [regenResult, setRegenResult] = useState<ReferenceRegenResult | null>(null);
+  const [regenError, setRegenError] = useState<string | null>(null);
 
   const inReview =
     !!reviewIds && typeof reviewIndex === "number" && !!onReviewNavigate;
@@ -142,6 +152,8 @@ const CodingExerciseDialog = ({
       setTestError(null);
       setTestProgress(null);
       setOpenFailure(null);
+      setRegenResult(null);
+      setRegenError(null);
     }
   }, [open, exercise]);
 
@@ -172,6 +184,35 @@ const CodingExerciseDialog = ({
     } finally {
       setValidating(false);
       setValidationProgress(null);
+    }
+  };
+
+  const regenBlocked = regenerateBlockedReason(draft);
+
+  const regenPercent = (p: RegenProgress) => {
+    if (p.stage === "writing") return 10;
+    if (p.stage === "reviewing") return 90;
+    return 20 + Math.round(((p.completed ?? 0) / Math.max(p.total ?? 1, 1)) * 65);
+  };
+
+  const handleRegenerate = async () => {
+    setRegenRunning(true);
+    setRegenError(null);
+    setRegenResult(null);
+    setRegenProgress({ stage: "writing", label: "Writing solution" });
+    try {
+      const res = await regenerateReferenceSolution(
+        exercise.course_id,
+        typeof exercise.week_number === "number" ? exercise.week_number : null,
+        draft,
+        (p) => setRegenProgress(p),
+      );
+      setRegenResult(res);
+    } catch (err: any) {
+      setRegenError(err?.message || "Couldn't regenerate the solution.");
+    } finally {
+      setRegenRunning(false);
+      setRegenProgress(null);
     }
   };
 
@@ -538,7 +579,23 @@ const CodingExerciseDialog = ({
           )}
 
           <div className="space-y-1.5 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-            <Label htmlFor="ce-solution">Reference solution (teachers only)</Label>
+            <div className="flex items-center justify-between gap-2">
+              <Label htmlFor="ce-solution">Reference solution (teachers only)</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => void handleRegenerate()}
+                disabled={regenRunning || saving || validating || testRunning || !!regenBlocked}
+              >
+                {regenRunning ? (
+                  <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+                ) : (
+                  <Sparkles className="mr-1.5 h-4 w-4" />
+                )}
+                {regenRunning ? "Regenerating…" : "Regenerate solution"}
+              </Button>
+            </div>
             <Textarea
               id="ce-solution"
               value={draft.reference_solution}
@@ -546,6 +603,119 @@ const CodingExerciseDialog = ({
               rows={8}
               className="font-mono text-xs"
             />
+            {regenBlocked && !regenRunning && (
+              <p className="text-xs italic text-muted-foreground">{regenBlocked}</p>
+            )}
+            {regenRunning && regenProgress && (
+              <div className="space-y-1">
+                <Progress value={regenPercent(regenProgress)} className="h-1.5" />
+                <p className="text-xs text-muted-foreground">
+                  {regenProgress.label}
+                  {regenProgress.stage === "running" && regenProgress.total
+                    ? ` (${regenProgress.completed ?? 0} of ${regenProgress.total})`
+                    : "…"}
+                </p>
+              </div>
+            )}
+            {regenError && !regenRunning && (
+              <p className="flex items-start gap-2 text-xs text-destructive">
+                <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                <span>{regenError}</span>
+              </p>
+            )}
+            {regenResult && !regenRunning && (
+              <div className="space-y-2 rounded-md border bg-background p-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="flex items-center gap-2">
+                    {(() => {
+                      const s = summariseRegen(regenResult);
+                      return (
+                        <Badge variant={s === "failed" ? "destructive" : s === "verified" ? "default" : "secondary"}>
+                          {s === "verified" ? "Verified" : s === "failed" ? "Failed" : "Needs review"}
+                        </Badge>
+                      );
+                    })()}
+                    <span className="text-xs">
+                      {regenResult.cases.filter((c) => c.passed).length} of {regenResult.cases.length} cases passed
+                      {regenResult.attempts > 1 ? " (after one retry)" : ""}
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button type="button" size="sm" variant="ghost" onClick={() => setRegenResult(null)}>
+                      Discard
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      onClick={() => {
+                        set("reference_solution", regenResult.solution);
+                        setRegenResult(null);
+                        setTestResults(null);
+                        toast({ title: "Solution applied", description: "Save the exercise to keep it." });
+                      }}
+                    >
+                      Use this solution
+                    </Button>
+                  </div>
+                </div>
+                {regenResult.notes && (
+                  <p className="text-xs text-muted-foreground">{regenResult.notes}</p>
+                )}
+                <div className="grid gap-2 md:grid-cols-2">
+                  <div>
+                    <p className="mb-1 text-xs font-medium">Current</p>
+                    <pre className="max-h-64 overflow-auto rounded bg-muted p-2 font-mono text-xs whitespace-pre-wrap">
+                      {draft.reference_solution || "(empty)"}
+                    </pre>
+                  </div>
+                  <div>
+                    <p className="mb-1 text-xs font-medium">New</p>
+                    <pre className="max-h-64 overflow-auto rounded bg-muted p-2 font-mono text-xs whitespace-pre-wrap">
+                      {regenResult.solution}
+                    </pre>
+                  </div>
+                </div>
+                <ul className="space-y-1">
+                  {regenResult.checks.map((c) => (
+                    <li key={c.id} className="flex items-start gap-2 text-xs">
+                      {c.status === "pass" ? (
+                        <CheckCircle2 className="mt-0.5 h-3.5 w-3.5 shrink-0 text-emerald-600" />
+                      ) : c.status === "warning" ? (
+                        <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-600" />
+                      ) : (
+                        <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0 text-destructive" />
+                      )}
+                      <span>
+                        <span className="font-medium">{c.label}:</span> {c.note}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+                {regenResult.cases.some((c) => !c.passed) && (
+                  <div className="space-y-1">
+                    <p className="text-xs font-medium">Failing cases</p>
+                    {regenResult.cases
+                      .filter((c) => !c.passed)
+                      .map((c) => (
+                        <div key={`${c.kind}-${c.index}`} className="rounded border p-2 text-xs">
+                          <p className="font-medium capitalize">
+                            {c.kind} {c.index} — {c.status}
+                          </p>
+                          <p className="font-mono whitespace-pre-wrap">Expected: {JSON.stringify(c.expected)}</p>
+                          <p className="font-mono whitespace-pre-wrap">Got: {JSON.stringify(c.actual)}</p>
+                          {c.message && <p className="font-mono whitespace-pre-wrap text-destructive">{c.message}</p>}
+                        </div>
+                      ))}
+                    <p className="text-xs text-muted-foreground">
+                      If a test's expected output is wrong, fix the test case instead of the solution.
+                    </p>
+                  </div>
+                )}
+                <p className="text-[11px] text-muted-foreground">
+                  Test cases are executed for real; the format checks are an AI review.
+                </p>
+              </div>
+            )}
           </div>
 
           <div className="rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
