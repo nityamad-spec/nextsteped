@@ -162,10 +162,10 @@ serve(async (req) => {
     });
 
     const authHeader = req.headers.get("Authorization") ?? "";
-    if (!authHeader.startsWith("Bearer ")) return jsonResp({ error: "Unauthorized" }, 401);
+    if (!authHeader.startsWith("Bearer ")) return jsonResp({ error: "Your session expired. Please sign in again." }, 401);
     const token = authHeader.slice("Bearer ".length).trim();
     const { data: userData, error: userErr } = await admin.auth.getUser(token);
-    if (userErr || !userData?.user) return jsonResp({ error: "Unauthorized" }, 401);
+    if (userErr || !userData?.user) return jsonResp({ error: "Your session expired. Please sign in again." }, 401);
     const userId = userData.user.id;
 
     const body = await req.json().catch(() => ({}));
