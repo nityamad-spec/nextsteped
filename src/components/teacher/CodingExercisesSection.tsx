@@ -261,6 +261,12 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
         title: "Coding exercises generated",
         description: needsReview ? `${countText} Review each one, then publish.` : countText,
       });
+    } catch (err: any) {
+      toast({
+        title: "Failed to generate exercises",
+        description: err?.message || "Please try again.",
+        variant: "destructive",
+      });
     } finally {
       setGenerating(false);
     }
