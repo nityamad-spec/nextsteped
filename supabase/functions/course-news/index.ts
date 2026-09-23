@@ -103,7 +103,6 @@ serve(async (req) => {
   try {
     const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
     const SERVICE_ROLE = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const ANON_KEY = Deno.env.get("SUPABASE_ANON_KEY")!;
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     const FIRECRAWL_API_KEY = Deno.env.get("FIRECRAWL_API_KEY");
     if (!LOVABLE_API_KEY) return jsonResp({ error: "LOVABLE_API_KEY is not configured" }, 500);
@@ -111,12 +110,14 @@ serve(async (req) => {
       return jsonResp({ error: "News search is not configured yet. Please try again later." }, 503);
     }
 
+    const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
+      auth: { autoRefreshToken: false, persistSession: false },
+    });
+
     const authHeader = req.headers.get("Authorization") ?? "";
     if (!authHeader.startsWith("Bearer ")) return jsonResp({ error: "Unauthorized" }, 401);
-    const userClient = createClient(SUPABASE_URL, ANON_KEY, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: userData, error: userErr } = await userClient.auth.getUser();
+    const token = authHeader.slice("Bearer ".length).trim();
+    const { data: userData, error: userErr } = await admin.auth.getUser(token);
     if (userErr || !userData?.user) return jsonResp({ error: "Unauthorized" }, 401);
     const userId = userData.user.id;
 
@@ -126,9 +127,6 @@ serve(async (req) => {
       return jsonResp({ error: "course_id is required" }, 400);
     }
 
-    const admin = createClient(SUPABASE_URL, SERVICE_ROLE, {
-      auth: { autoRefreshToken: false, persistSession: false },
-    });
 
     const { data: enrollment } = await admin
       .from("enrollments")
