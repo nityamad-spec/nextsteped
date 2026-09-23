@@ -330,7 +330,10 @@ Output only JSON. No prose, no markdown fences.`;
         return {
           headline: String(o.headline ?? hit.title).slice(0, 200),
           summary: String(o.summary ?? "").slice(0, 400),
-          concept: String(o.concept ?? "").slice(0, 120) || courseName,
+          concept: String(o.concept ?? "").slice(0, 120) || subject,
+          region: String(o.region ?? hit.region ?? "global").toLowerCase() === "india"
+            ? "india"
+            : "global",
           url,
           source: String(o.source ?? hit.source ?? hostOf(url)),
           published_at: o.published_at ? String(o.published_at) : (hit.published_at ?? null),
@@ -339,7 +342,7 @@ Output only JSON. No prose, no markdown fences.`;
       .filter((x): x is NonNullable<typeof x> => !!x)
       .slice(0, 6);
 
-    if (items.length === 0) {
+    if (items.length < 3) {
       return jsonResp({ error: "No relevant news found for your course today." }, 404);
     }
 
