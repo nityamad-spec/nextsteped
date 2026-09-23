@@ -89,6 +89,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function TeacherRedirect() {
   const { user, loading: authLoading } = useAuth();
+  const { setCurrentCourse } = useApp();
   const [checking, setChecking] = useState(true);
   const [hasCourse, setHasCourse] = useState(false);
   const [isCollaboratorOnly, setIsCollaboratorOnly] = useState(false);
@@ -132,7 +133,7 @@ function TeacherRedirect() {
       const remembered = typeof window !== "undefined" ? localStorage.getItem("currentCourseId") : null;
       if (preferred && typeof window !== "undefined" && !(remembered && accessible.has(remembered))) {
         localStorage.setItem("currentCourseId", preferred);
-        localStorage.removeItem("ns_current_course");
+        setCurrentCourse(null); // hooks re-resolve from currentCourseId
       }
 
       setChecking(false);
