@@ -284,13 +284,6 @@ const StudentResources = () => {
                   )}
                 </div>
               </div>
-              {c.apply_url && (
-                <Button size="sm" className="gap-2" asChild>
-                  <a href={c.apply_url} target="_blank" rel="noreferrer">
-                    Careers page <ExternalLink className="h-3.5 w-3.5" />
-                  </a>
-                </Button>
-              )}
             </CardContent>
           </Card>
 
