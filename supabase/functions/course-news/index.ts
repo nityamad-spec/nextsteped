@@ -79,6 +79,27 @@ const STOPWORDS = new Set([
   "design",
 ]);
 
+/** Social feeds and job boards are not news sources. */
+const BLOCKED_HOSTS = [
+  "facebook.com",
+  "instagram.com",
+  "x.com",
+  "twitter.com",
+  "reddit.com",
+  "pinterest.com",
+  "tiktok.com",
+  "youtube.com",
+  "linkedin.com",
+  "quora.com",
+  "indeed.com",
+  "naukri.com",
+  "glassdoor.com",
+  "ziprecruiter.com",
+  "jobs.lever.co",
+  "greenhouse.io",
+  "workday.com",
+];
+
 function hostOf(url: string): string {
   try {
     return new URL(url).hostname.replace(/^www\./, "");
