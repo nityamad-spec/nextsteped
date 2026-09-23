@@ -72,18 +72,60 @@ export function WhatsNewCard({ courseId, courseName }: WhatsNewCardProps) {
     }
   };
 
+  /** Returns a valid access token, refreshing the session when it is missing or about to expire. */
+  const getAccessToken = async (forceRefresh = false): Promise<string | null> => {
+    const { data } = await supabase.auth.getSession();
+    const session = data.session;
+    const expiresAt = session?.expires_at ? session.expires_at * 1000 : 0;
+    const stale = !session?.access_token || expiresAt - Date.now() < 60_000;
+    if (forceRefresh || stale) {
+      const { data: refreshed } = await supabase.auth.refreshSession();
+      return refreshed.session?.access_token ?? session?.access_token ?? null;
+    }
+    return session.access_token;
+  };
+
   const generate = async () => {
     if (!courseId || loading) return;
     setLoading(true);
     setError(null);
     try {
-      const { data, error: fnError } = await supabase.functions.invoke("course-news", {
-        body: { course_id: courseId },
-      });
-      if (fnError) {
-        setError(await extractFunctionError(fnError, "Could not load today's news."));
+      const call = async (token: string) =>
+        supabase.functions.invoke("course-news", {
+          body: { course_id: courseId },
+          headers: { Authorization: `Bearer ${token}` },
+        });
+
+      let token = await getAccessToken();
+      if (!token) {
+        setError("Your session expired. Please sign in again.");
         return;
       }
+
+      let { data, error: fnError } = await call(token);
+
+      if (fnError) {
+        const message = await extractFunctionError(fnError, "Could not load today's news.");
+        const authIssue = /unauthor|session expired|401/i.test(message);
+        if (authIssue) {
+          const retryToken = await getAccessToken(true);
+          if (!retryToken) {
+            setError("Your session expired. Please sign in again.");
+            return;
+          }
+          ({ data, error: fnError } = await call(retryToken));
+        }
+        if (fnError) {
+          const finalMessage = await extractFunctionError(fnError, "Could not load today's news.");
+          setError(
+            /unauthor|401/i.test(finalMessage)
+              ? "Your session expired. Please sign in again."
+              : finalMessage,
+          );
+          return;
+        }
+      }
+
       const list = (data as { items?: NewsItem[] } | null)?.items ?? [];
       if (list.length === 0) {
         setError("No relevant news found for your course today.");
