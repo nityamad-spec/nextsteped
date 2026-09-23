@@ -72,10 +72,30 @@ describe("runReferenceAgainstTestCases", () => {
     expect(summariseTestRun(results)).toEqual({ passed: 2, total: 2 });
   });
 
-  it("fails on any whitespace difference (exact match)", async () => {
+  it("ignores trailing newline and CRLF", async () => {
+    invoke.mockResolvedValueOnce(ok("3\n")).mockResolvedValueOnce(ok("30\r\n"));
+    const results = await runReferenceAgainstTestCases(draft());
+    expect(results.every((r) => r.passed)).toBe(true);
+  });
+
+  it("still fails on inner whitespace difference", async () => {
+    invoke.mockResolvedValueOnce(ok("3 ")).mockResolvedValueOnce(ok("3 0"));
+    const results = await runReferenceAgainstTestCases(draft());
+    expect(results[0].passed).toBe(true);
+    expect(results[1].passed).toBe(false);
+  });
+
+  it("passes Accepted runs with an informational message", async () => {
+    invoke.mockResolvedValue({ data: { ...ok("3\n").data, message: "note" }, error: null });
+    const results = await runReferenceAgainstTestCases(draft({ hidden_test_cases: [] }));
+    expect(results[0].passed).toBe(true);
+    invoke.mockReset();
+  });
+
+  it("keeps raw stdout for display", async () => {
     invoke.mockResolvedValueOnce(ok("3\n")).mockResolvedValueOnce(ok("30"));
     const results = await runReferenceAgainstTestCases(draft());
-    expect(results[0].passed).toBe(false);
+    expect(results[0].passed).toBe(true);
     expect(results[0].actual).toBe("3\n");
     expect(results[1].passed).toBe(true);
   });
