@@ -51,7 +51,33 @@ interface SearchHit {
   description?: string;
   source?: string;
   published_at?: string | null;
+  region?: "india" | "global";
 }
+
+/** Common words that would make the relevance filter match everything. */
+const STOPWORDS = new Set([
+  "with",
+  "from",
+  "this",
+  "that",
+  "your",
+  "into",
+  "using",
+  "data",
+  "test",
+  "skill",
+  "skills",
+  "training",
+  "course",
+  "week",
+  "basics",
+  "introduction",
+  "fundamentals",
+  "essentials",
+  "foundations",
+  "systems",
+  "design",
+]);
 
 function hostOf(url: string): string {
   try {
