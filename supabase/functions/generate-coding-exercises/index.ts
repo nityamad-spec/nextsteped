@@ -383,6 +383,91 @@ async function generateOne(
   return null;
 }
 
+// ─── Distinct-theme planning + duplicate detection ───
+const STOP = new Set(["the","a","an","and","or","of","to","in","for","on","with","is","are","be","each","that","this","your","you","from","by","as","it","at","will","should","must","given","which"]);
+function normTitle(t: string): string {
+  return t.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").replace(/\s+/g, " ").trim();
+}
+function tokens(t: string): Set<string> {
+  return new Set(t.toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter((w) => w.length > 2 && !STOP.has(w)));
+}
+function jaccard(a: Set<string>, b: Set<string>): number {
+  if (!a.size || !b.size) return 0;
+  let inter = 0;
+  for (const w of a) if (b.has(w)) inter++;
+  return inter / (a.size + b.size - inter);
+}
+type Fingerprint = { title: string; words: Set<string> };
+function fingerprint(title: string, statement: string): Fingerprint {
+  return { title: normTitle(title), words: tokens(`${title} ${statement}`) };
+}
+function isDuplicate(f: Fingerprint, others: Fingerprint[]): boolean {
+  return others.some((o) => (f.title && f.title === o.title) || jaccard(f.words, o.words) >= 0.6);
+}
+
+const THEME_TOOL = {
+  type: "function",
+  function: {
+    name: "plan_themes",
+    description: "Return distinct exercise themes",
+    parameters: {
+      type: "object",
+      properties: { themes: { type: "array", items: { type: "string" } } },
+      required: ["themes"],
+      additionalProperties: false,
+    },
+  },
+};
+
+/** One cheap call that returns `count` clearly different scenario themes. Falls back to []. */
+async function planThemes(
+  lovableKey: string,
+  prompts: { system: string; user: string },
+  count: number,
+  logMeta: { teacher_id: string | null; course_id: string | null; week: number },
+): Promise<string[]> {
+  if (count < 2) return [];
+  try {
+    const resp = await loggedGatewayFetch(
+      FUNCTION_NAME,
+      { model: MODEL, purpose: "coding-exercise-themes", attempt: 1, total_attempts: 1,
+        teacher_id: logMeta.teacher_id, course_id: logMeta.course_id, context: { week: logMeta.week } },
+      "https://ai.gateway.lovable.dev/v1/chat/completions",
+      {
+        method: "POST",
+        signal: AbortSignal.timeout(PER_CALL_TIMEOUT_MS),
+        headers: { Authorization: `Bearer ${lovableKey}`, "Content-Type": "application/json" },
+        body: JSON.stringify({
+          model: MODEL,
+          reasoning_effort: "none",
+          messages: [
+            { role: "system", content: `Propose exactly ${count} CLEARLY DIFFERENT real-world scenario themes (one short phrase each, e.g. "parse web server logs", "reconcile bank transactions") for coding exercises. No two may share the same domain or task type. Return via plan_themes.` },
+            { role: "user", content: prompts.user },
+          ],
+          tools: [THEME_TOOL],
+          tool_choice: { type: "function", function: { name: "plan_themes" } },
+        }),
+      },
+    );
+    if (!resp.ok) return [];
+    const data = await resp.json();
+    const args = data?.choices?.[0]?.message?.tool_calls?.[0]?.function?.arguments;
+    const themes = JSON.parse(args ?? "{}")?.themes;
+    return Array.isArray(themes) ? themes.map((t: unknown) => asStr(t)).filter(Boolean).slice(0, count) : [];
+  } catch (e) {
+    console.error("[gen-coding] theme planning failed:", (e as any)?.message ?? e);
+    return [];
+  }
+}
+
+function withTheme(prompts: { system: string; user: string }, theme: string | undefined, siblings: string[], extra = "") {
+  let user = prompts.user;
+  if (theme) user += `\n\nSCENARIO THEME FOR THIS EXERCISE: ${theme}`;
+  if (siblings.length) user += `\nOther exercises in this batch cover (do NOT overlap with them): ${siblings.join(" | ")}`;
+  if (extra) user += `\n${extra}`;
+  return { system: prompts.system, user };
+}
+
 async function run(req: Request): Promise<{ status: number; payload: unknown }> {
   const lovableKey = Deno.env.get("LOVABLE_API_KEY");
   if (!lovableKey) throw new Error("LOVABLE_API_KEY not configured");
@@ -486,7 +571,7 @@ async function run(req: Request): Promise<{ status: number; payload: unknown }> 
   // Existing titles/themes go into the avoid list so appends don't duplicate.
   const { data: existing } = await admin
     .from("coding_exercises")
-    .select("title, position")
+    .select("title, position, problem_statement")
     .eq("course_id", courseId)
     .eq("week_number", weekNumber)
     .order("position", { ascending: true });
@@ -507,19 +592,47 @@ async function run(req: Request): Promise<{ status: number; payload: unknown }> 
     hint,
   });
 
+  const logMeta = { teacher_id: userId, course_id: courseId, week: weekNumber };
+  const themes = await planThemes(lovableKey, prompts, count, logMeta);
   const results = await Promise.allSettled(
-    Array.from({ length: count }, () =>
-      generateOne(lovableKey, prompts, { teacher_id: userId, course_id: courseId, week: weekNumber })),
+    Array.from({ length: count }, (_, i) =>
+      generateOne(lovableKey, withTheme(prompts, themes[i], themes.filter((_, j) => j !== i)), logMeta)),
   );
 
   const quotaError = results.find(
     (r) => r.status === "rejected" && (r.reason as any)?.httpStatus,
   ) as PromiseRejectedResult | undefined;
+
+  // Dedupe against the week's existing exercises and each other; retry a
+  // collision once with an explicit "must differ" instruction, else drop it.
+  const seen: Fingerprint[] = (existing ?? []).map((r: any) =>
+    fingerprint(asStr(r.title), asStr(r.problem_statement)));
   const exercises: GeneratedExercise[] = [];
-  for (const r of results) {
-    if (r.status === "fulfilled" && r.value) exercises.push(r.value);
+  let skippedDuplicates = 0;
+  for (let i = 0; i < results.length; i++) {
+    const r = results[i];
+    if (r.status !== "fulfilled" || !r.value) continue;
+    let ex: GeneratedExercise | null = r.value;
+    let fp = fingerprint(ex.title, ex.problem_statement);
+    if (isDuplicate(fp, seen)) {
+      const taken = [...(existing ?? []).map((e: any) => asStr(e.title)), ...exercises.map((e) => e.title)];
+      try {
+        ex = await generateOne(lovableKey, withTheme(prompts, undefined, themes.filter((_, j) => j !== i),
+          `YOUR PREVIOUS DRAFT DUPLICATED ANOTHER EXERCISE. You MUST pick a completely different scenario and task from: ${taken.join(" | ")}`), logMeta);
+      } catch { ex = null; }
+      fp = ex ? fingerprint(ex.title, ex.problem_statement) : fp;
+      if (!ex || isDuplicate(fp, seen)) {
+        skippedDuplicates++;
+        continue;
+      }
+    }
+    seen.push(fp);
+    exercises.push(ex);
   }
 
+  if (exercises.length === 0 && skippedDuplicates > 0) {
+    return { status: 409, payload: { error: "Every generated exercise duplicated one already in this week. Try adding guidance to steer it elsewhere." } };
+  }
   if (exercises.length === 0) {
     if (quotaError) {
       const e = quotaError.reason as any;
@@ -579,6 +692,7 @@ async function run(req: Request): Promise<{ status: number; payload: unknown }> 
     payload: {
       generated: exercises.length,
       requested: count,
+      skipped_duplicates: skippedDuplicates,
       total_for_week: avoidTitles.length + exercises.length,
       week_number: weekNumber,
       language,

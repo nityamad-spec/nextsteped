@@ -248,15 +248,18 @@ const CodingExercisesSection = ({ courseId, week, codingApproved }: CodingExerci
       if (payload?.error) throw new Error(payload.error);
 
       const generated = Number(payload?.generated ?? 0);
+      const skipped = Number(payload?.skipped_duplicates ?? 0);
+      const requested = Number(payload?.requested ?? generated);
       const rows = await load();
       // Auto-open the review flow over the unreviewed exercises (the newly
       // generated ones are unreviewed by construction).
       const needsReview = openReview(rows);
+      const countText = skipped > 0
+        ? `${generated} of ${requested} added to Week ${week.week} — ${skipped} skipped as a duplicate.`
+        : `${generated} new draft exercise${generated === 1 ? "" : "s"} added to Week ${week.week}.`;
       toast({
         title: "Coding exercises generated",
-        description: needsReview
-          ? `${generated} new draft exercise${generated === 1 ? "" : "s"} added to Week ${week.week} — review each one, then publish.`
-          : `${generated} new draft exercise${generated === 1 ? "" : "s"} added to Week ${week.week}.`,
+        description: needsReview ? `${countText} Review each one, then publish.` : countText,
       });
     } catch (err: any) {
       toast({
