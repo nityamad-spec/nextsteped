@@ -96,15 +96,17 @@ Deno.serve(async (req) => {
         const c = all[i];
         try {
           const r = await runOnJudge0(language, code, c.input);
-          const passed = judgePassed(r, c.expected_output);
+          const verdict = judgeVerdict(r, c.expected_output);
+          const passed = verdict === "passed";
           const message = [r.compileOutput, r.stderr].filter((s) => s.trim()).join("\n").slice(0, 2000);
           results[i] =
             c.kind === "hidden"
-              ? { kind: "hidden", index: c.index, passed, status: r.status }
+              ? { kind: "hidden", index: c.index, passed, verdict, status: r.status }
               : {
                   kind: "standard",
                   index: c.index,
                   passed,
+                  verdict,
                   status: r.status,
                   input: c.input,
                   expected: c.expected_output,

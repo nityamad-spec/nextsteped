@@ -118,9 +118,19 @@ export function normalizeOutput(s: string): string {
 }
 
 export function judgePassed(r: Judge0Result, expected: string): boolean {
-  const errored =
-    (typeof r.statusId === "number" && r.statusId !== 3) ||
-    r.compileOutput.trim().length > 0 ||
-    r.stderr.trim().length > 0;
-  return !errored && normalizeOutput(r.stdout) === normalizeOutput(expected);
+  return judgeVerdict(r, expected) === "passed";
+}
+
+export type Verdict =
+  | "passed" | "wrong_answer" | "no_output" | "runtime_error" | "compile_error" | "time_limit" | "error";
+
+export function judgeVerdict(r: Judge0Result, expected: string): Verdict {
+  const id = r.statusId;
+  if (id === 6 || r.compileOutput.trim()) return "compile_error";
+  if (id === 5) return "time_limit";
+  if (typeof id === "number" && id >= 7 && id <= 12) return "runtime_error";
+  if (typeof id === "number" && id !== 3) return "error";
+  if (r.stderr.trim()) return "runtime_error";
+  if (normalizeOutput(r.stdout) === normalizeOutput(expected)) return "passed";
+  return normalizeOutput(r.stdout) === "" ? "no_output" : "wrong_answer";
 }
