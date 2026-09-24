@@ -15,6 +15,24 @@ export interface SubmitCaseResult {
   expected?: string;
   actual?: string;
   message?: string;
+  verdict?: string;
+}
+
+const VERDICT_LABELS: Record<string, string> = {
+  passed: "Passed",
+  wrong_answer: "Wrong answer",
+  no_output: "No output",
+  runtime_error: "Runtime error",
+  compile_error: "Compile error",
+  time_limit: "Time limit exceeded",
+  error: "Failed",
+};
+
+/** Label for a case result — never shows the runner's raw "Accepted" for a failure. */
+export function verdictLabel(r: Pick<SubmitCaseResult, "passed" | "verdict">): string {
+  if (r.passed) return "Passed";
+  const label = r.verdict ? VERDICT_LABELS[r.verdict] : undefined;
+  return label && label !== "Passed" ? label : "Failed";
 }
 import { useToast } from "@/hooks/use-toast";
 
@@ -449,7 +467,7 @@ export default function CodingTerminalWidget({
                     </span>
                   )}
                   {!r.passed && r.kind === "hidden" && (
-                    <span className="text-xs text-muted-foreground">{r.status}</span>
+                    <span className="text-xs text-destructive">{verdictLabel(r)}</span>
                   )}
                 </div>
               ))}
