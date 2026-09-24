@@ -115,6 +115,7 @@ Deno.serve(async (req) => {
                 };
         } catch (e) {
           if (e instanceof Judge0Error) throw e;
+          console.error("[submit-coding-solution] case failed", e);
           throw new Judge0Error("Code execution service error.");
         }
       }
