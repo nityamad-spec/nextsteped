@@ -13,7 +13,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
-import { judgePassed, Judge0Error, runOnJudge0 } from "../_shared/judge0.ts";
+import { judgeVerdict, Judge0Error, runOnJudge0 } from "../_shared/judge0.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -115,6 +115,7 @@ Deno.serve(async (req) => {
                 };
         } catch (e) {
           if (e instanceof Judge0Error) throw e;
+          console.error("[submit-coding-solution] case failed", e);
           throw new Judge0Error("Code execution service error.");
         }
       }
