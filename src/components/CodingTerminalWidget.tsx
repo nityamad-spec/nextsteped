@@ -93,6 +93,11 @@ interface CodingTerminalWidgetProps {
      * question row; omitted/untagged questions are mastery-neutral.
      */
     mastery?: { conceptId: string | null; bloomLevel?: number | null };
+    /**
+     * Coding lab weeks: Submit-attempt cap with best-of-N scoring. The cap is
+     * enforced server-side; this only drives the student-facing badge/lock.
+     */
+    attemptCap?: number;
     onSolved?: () => void;
   } | null;
 }
@@ -131,6 +136,12 @@ export default function CodingTerminalWidget({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [testResults, setTestResults] = useState<SubmitCaseResult[] | null>(null);
   const [solved, setSolved] = useState(false);
+  // Coding lab weeks: attempt-cap state (best-of-N scoring).
+  const attemptCap = submission?.attemptCap;
+  const [attemptsUsed, setAttemptsUsed] = useState(0);
+  const [bestScore, setBestScore] = useState<number | null>(null);
+  const [lastScore, setLastScore] = useState<number | null>(null);
+  const openedAtRef = useRef<number>(Date.now());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // Latest values for the assistant's per-send context snapshot.
   const codeRef = useRef(code);
@@ -139,6 +150,29 @@ export default function CodingTerminalWidget({
   outputRef.current = output;
 
   const canSubmit = !!submission;
+  const attemptsLeft = attemptCap != null ? Math.max(0, attemptCap - attemptsUsed) : null;
+  const capReached = attemptsLeft === 0;
+
+  // Load prior attempts so the badge is right before the first Submit.
+  useEffect(() => {
+    if (!submission || attemptCap == null || submission.bank === "daily") return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("coding_attempts")
+        .select("score")
+        .eq("exercise_id", submission.exerciseId)
+        .eq("student_id", submission.studentId);
+      if (cancelled || !data) return;
+      setAttemptsUsed(data.length);
+      const scores = data.map((a) => a.score).filter((s): s is number => typeof s === "number");
+      if (scores.length) setBestScore(Math.max(...scores));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submission?.exerciseId, attemptCap]);
 
   const handleSubmit = async () => {
     if (!submission || isSubmitting) return;
