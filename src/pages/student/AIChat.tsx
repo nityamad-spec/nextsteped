@@ -258,6 +258,8 @@ const AIChat = () => {
     bank?: "daily" | "weekly";
     /** Daily-bank mastery context: first full pass on a concept-tagged question nudges mastery. */
     mastery?: { conceptId: string | null; bloomLevel?: number | null };
+    /** Coding lab weeks: Submit-attempt cap with best-of-N scoring (server-enforced). */
+    attemptCap?: number;
   } | null>(null);
   // Freeform-practice assistant: unit the terminal was opened for, a prior
   // terminal-help session to resume, and saved terminal-help sessions.
@@ -546,7 +548,18 @@ const AIChat = () => {
         exerciseStatement: exercise?.problem_statement ?? null,
       });
       // Any loaded exercise opens a graded terminal: Submit runs the code
-      // server-side against every visible + hidden test case.
+      // server-side against every visible + hidden test case. Coding lab
+      // weeks carry a 3-attempt cap with best-of-3 scoring (server-enforced).
+      let attemptCap: number | undefined;
+      if (!isDaily && exercise && unit > 0) {
+        const { data: weekRow } = await supabase
+          .from("lesson_plan_weeks")
+          .select("is_coding_week")
+          .eq("course_id", enrolledCourseId)
+          .eq("week_number", unit)
+          .maybeSingle();
+        if (weekRow?.is_coding_week) attemptCap = 3;
+      }
       setTerminalSubmission(
         exercise
           ? {
@@ -561,6 +574,7 @@ const AIChat = () => {
                     bloomLevel: (exercise as any).bloom_level ?? null,
                   }
                 : undefined,
+              attemptCap,
             }
           : null,
       );
