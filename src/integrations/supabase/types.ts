@@ -491,11 +491,13 @@ export type Database = {
           cases_total: number
           course_id: string
           created_at: string
+          elapsed_ms: number | null
           exercise_id: string
           id: string
           language: string | null
           passed: boolean
           results: Json
+          score: number | null
           source: string
           student_id: string
           submitted_code: string
@@ -505,11 +507,13 @@ export type Database = {
           cases_total?: number
           course_id: string
           created_at?: string
+          elapsed_ms?: number | null
           exercise_id: string
           id?: string
           language?: string | null
           passed?: boolean
           results?: Json
+          score?: number | null
           source?: string
           student_id: string
           submitted_code?: string
@@ -519,11 +523,13 @@ export type Database = {
           cases_total?: number
           course_id?: string
           created_at?: string
+          elapsed_ms?: number | null
           exercise_id?: string
           id?: string
           language?: string | null
           passed?: boolean
           results?: Json
+          score?: number | null
           source?: string
           student_id?: string
           submitted_code?: string
