@@ -88,7 +88,7 @@ describe("CodingTerminalWidget submission", () => {
     fireEvent.click(screen.getByRole("button", { name: /submit solution/i }));
     await waitFor(() => expect(onSolved).toHaveBeenCalled());
     expect(invoke).toHaveBeenCalledWith("submit-coding-solution", {
-      body: { bank: "weekly", exerciseId: "ex-1", language: "python", code: 'print("hi")\n' },
+      body: expect.objectContaining({ bank: "weekly", exerciseId: "ex-1", language: "python", code: 'print("hi")\n' }),
     });
     expect(screen.getByText(/2 of 2 passed/)).toBeInTheDocument();
     expect(screen.getByText("Solved")).toBeInTheDocument();
@@ -141,5 +141,64 @@ describe("CodingTerminalWidget submission", () => {
         description: "You are not enrolled in this course.",
       })),
     );
+  });
+});
+
+describe("CodingTerminalWidget attempt cap (coding lab weeks)", () => {
+  const cappedSubmission = { ...baseSubmission, attemptCap: 3 };
+
+  it("shows the attempt badge and sends elapsed_ms with Submit", async () => {
+    invoke.mockResolvedValue({
+      data: {
+        passed: false,
+        results: [{ kind: "standard", index: 1, passed: false, status: "Accepted", verdict: "wrong_answer" }],
+        score: 40,
+        attemptsUsed: 1,
+        bestScore: 40,
+        maxAttempts: 3,
+      },
+      error: null,
+    });
+    setup(cappedSubmission);
+    expect(screen.getByText(/Attempt 1 of 3 — best score kept/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: /submit solution/i }));
+    await waitFor(() =>
+      expect(invoke).toHaveBeenCalledWith("submit-coding-solution", {
+        body: expect.objectContaining({ exerciseId: "ex-1", elapsed_ms: expect.any(Number) }),
+      }),
+    );
+    expect(await screen.findByText(/Score 40/)).toBeInTheDocument();
+    expect(screen.getByText(/Best 40/)).toBeInTheDocument();
+    expect(screen.getByText(/2 attempts left/)).toBeInTheDocument();
+  });
+
+  it("locks Submit and keeps the best score when the cap is reached", async () => {
+    invoke.mockResolvedValue({
+      data: { error: "No attempts left", attemptsUsed: 3, bestScore: 80, maxAttempts: 3 },
+      error: null,
+    });
+    setup(cappedSubmission);
+    fireEvent.click(screen.getByRole("button", { name: /submit solution/i }));
+    await waitFor(() =>
+      expect(toast).toHaveBeenCalledWith(expect.objectContaining({
+        description: "No attempts left — your best score is kept.",
+      })),
+    );
+    expect(screen.getByRole("button", { name: /no attempts left/i })).toBeDisabled();
+    expect(screen.getByText(/No attempts left — best 80/)).toBeInTheDocument();
+  });
+
+  it("Run with custom input never consumes an attempt", async () => {
+    invoke.mockResolvedValue({ data: { stdout: "7\n", status: "Accepted" }, error: null });
+    setup(cappedSubmission);
+    fireEvent.click(screen.getByRole("button", { name: /^run$/i }));
+    await waitFor(() => expect(invoke).toHaveBeenCalledWith("run-code", expect.anything()));
+    expect(invoke).not.toHaveBeenCalledWith("submit-coding-solution", expect.anything());
+    expect(screen.getByText(/Attempt 1 of 3 — best score kept/)).toBeInTheDocument();
+  });
+
+  it("shows no attempt badge for uncapped exercises", () => {
+    setup();
+    expect(screen.queryByText(/of 3/)).toBeNull();
   });
 });
