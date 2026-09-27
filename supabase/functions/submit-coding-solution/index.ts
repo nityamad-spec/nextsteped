@@ -14,6 +14,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 import { judgeVerdict, Judge0Error, runOnJudge0 } from "../_shared/judge0.ts";
+import { scoreAttempt } from "../_shared/attempt-scoring.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,12 +24,16 @@ const corsHeaders = {
 
 const MAX_CASES = 30;
 const CONCURRENCY = 4;
+/** Submit-attempt cap for exercises in coding lab weeks (best-of-3 scoring). */
+const MAX_ATTEMPTS = 3;
 
 const BodySchema = z.object({
   bank: z.enum(["weekly", "daily"]),
   exerciseId: z.string().uuid(),
   language: z.enum(["python", "cpp", "java", "javascript"]),
   code: z.string().min(1).max(50_000),
+  /** ms from opening the exercise to Submit — feeds the pace term. */
+  elapsed_ms: z.number().int().positive().max(24 * 60 * 60 * 1000).optional(),
 });
 
 type Case = { input: string; expected_output: string };
