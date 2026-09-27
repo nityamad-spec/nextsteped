@@ -35,6 +35,8 @@ export interface UnitDetailPanelProps {
   isCodingWeek?: boolean;
   exercises?: PublishedCodingExercise[];
   completedExerciseIds?: ReadonlySet<string>;
+  /** Coding lab weeks: per-exercise Submit-attempt usage + best score (best-of-3). */
+  exerciseAttempts?: Record<string, { used: number; best: number | null }>;
   onOpenExercise?: (exercise: PublishedCodingExercise) => void;
   quizScore?: number;
   quizAvailable: boolean;
@@ -154,6 +156,7 @@ const UnitDetailPanel = ({
   isCodingWeek = false,
   exercises = [],
   completedExerciseIds,
+  exerciseAttempts,
   onOpenExercise,
   quizScore,
   quizAvailable,
