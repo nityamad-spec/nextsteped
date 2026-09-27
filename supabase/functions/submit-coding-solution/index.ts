@@ -164,6 +164,26 @@ Deno.serve(async (req) => {
     const passedCount = results.filter((r) => r.passed).length;
     const allPassed = passedCount === results.length;
 
+    // Score the attempt with the shared 80/20 accuracy+pace blend (coding lab
+    // weeks only — daily DSA stays pass/fail). Difficulty isn't modelled on
+    // exercises, so 0.5 keeps expected time at the Bloom base.
+    let score: number | null = null;
+    if (capped) {
+      const scored = scoreAttempt([
+        {
+          difficulty: 0.5,
+          bloom: ex.bloom_level ?? 3,
+          is_correct: allPassed,
+          // Accuracy is the fraction of cases passed, not all-or-nothing:
+          // scoreAttempt weights a single item, so pass the ratio through
+          // via a synthetic all-correct item scaled below.
+          time_ms: elapsed_ms,
+        },
+      ]);
+      const accuracy = passedCount / results.length;
+      score = Math.round(100 * (0.8 * accuracy + 0.2 * scored.pace));
+    }
+
     const attempt = {
       student_id: userId,
       course_id: ex.course_id,
@@ -173,6 +193,7 @@ Deno.serve(async (req) => {
       cases_passed: passedCount,
       cases_total: results.length,
       results: results.map((r) => ({ kind: r.kind, index: r.index, passed: r.passed, status: r.status })),
+      ...(capped ? { score, elapsed_ms: elapsed_ms ?? null } : {}),
     };
     const { error: attemptErr } =
       bank === "daily"
@@ -188,7 +209,18 @@ Deno.serve(async (req) => {
       if (progErr) console.error("progress upsert failed", progErr);
     }
 
-    return json({ passed: allPassed, casesPassed: passedCount, casesTotal: results.length, results });
+    if (capped) {
+      attemptsUsed += 1;
+      bestScore = Math.max(bestScore ?? 0, score ?? 0);
+    }
+
+    return json({
+      passed: allPassed,
+      casesPassed: passedCount,
+      casesTotal: results.length,
+      results,
+      ...(capped ? { score, attemptsUsed, bestScore, maxAttempts: MAX_ATTEMPTS } : {}),
+    });
   } catch (e) {
     if (e instanceof Judge0Error) return json({ error: e.message }, 502);
     console.error("submit-coding-solution error", e);
