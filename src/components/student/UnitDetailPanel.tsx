@@ -396,6 +396,9 @@ const UnitDetailPanel = ({
         <div className="mt-3 space-y-2">
           {exercises.map((ex) => {
             const done = completedExerciseIds?.has(ex.id) ?? false;
+            const att = exerciseAttempts?.[ex.id];
+            const used = att?.used ?? 0;
+            const left = Math.max(0, 3 - used);
             return (
               <button
                 key={ex.id}
@@ -409,6 +412,15 @@ const UnitDetailPanel = ({
                   <Code2 className="h-4 w-4 shrink-0 text-muted-foreground" />
                 )}
                 <span className="min-w-0 flex-1 truncate text-sm font-medium">{ex.title}</span>
+                {left > 0 ? (
+                  <Badge variant="outline" className="shrink-0 text-[10px]">
+                    {used === 0 ? "3 attempts" : `${left} of 3 attempts left`}
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="shrink-0 text-[10px] text-destructive border-destructive/40">
+                    No attempts left{att?.best != null ? ` · best ${att.best}` : ""}
+                  </Badge>
+                )}
                 <Badge variant="outline" className="shrink-0 text-[10px]">
                   {languageLabel(ex.language)}
                 </Badge>
