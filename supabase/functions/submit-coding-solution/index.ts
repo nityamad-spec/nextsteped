@@ -14,7 +14,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 import { judgeVerdict, Judge0Error, runOnJudge0 } from "../_shared/judge0.ts";
-import { scoreAttempt } from "../_shared/attempt-scoring.ts";
+import { expectedMsFor, paceCurve, WEIGHTS } from "../_shared/attempt-scoring.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
