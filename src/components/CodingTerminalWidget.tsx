@@ -376,10 +376,22 @@ export default function CodingTerminalWidget({
           {isRunning ? "Running…" : "Run"}
         </Button>
         {canSubmit && (
-          <Button size="sm" className="h-9 gap-2" onClick={handleSubmit} disabled={isRunning || isSubmitting}>
-            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListChecks className="h-4 w-4" />}
-            {isSubmitting ? "Checking…" : "Submit solution"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {attemptCap != null && (
+              <span
+                className={`text-xs font-medium ${capReached ? "text-destructive" : "text-muted-foreground"}`}
+                title="Your best score across attempts is kept"
+              >
+                {capReached
+                  ? `No attempts left${bestScore != null ? ` — best ${bestScore}` : ""}`
+                  : `Attempt ${Math.min(attemptsUsed + 1, attemptCap)} of ${attemptCap} — best score kept`}
+              </span>
+            )}
+            <Button size="sm" className="h-9 gap-2" onClick={handleSubmit} disabled={isRunning || isSubmitting || capReached}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListChecks className="h-4 w-4" />}
+              {isSubmitting ? "Checking…" : capReached ? "No attempts left" : "Submit solution"}
+            </Button>
+          </div>
         )}
         {assistantEnabled && courseId && (
           <Button
@@ -485,6 +497,9 @@ export default function CodingTerminalWidget({
               <span>
                 Test cases
                 {testResults && ` — ${testResults.filter((r) => r.passed).length} of ${testResults.length} passed`}
+                {testResults && lastScore != null && ` · Score ${lastScore}`}
+                {testResults && bestScore != null && ` · Best ${bestScore}`}
+                {testResults && attemptsLeft != null && !capReached && ` · ${attemptsLeft} attempt${attemptsLeft === 1 ? "" : "s"} left`}
               </span>
               {solved && (
                 <span className="flex items-center gap-1 text-xs normal-case tracking-normal text-primary">
