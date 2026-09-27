@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Terminal, Play, RotateCcw, X, Loader2, ChevronDown, ChevronUp, FileCode2, Bot, CheckCircle2, XCircle, ListChecks } from "lucide-react";
@@ -93,6 +93,11 @@ interface CodingTerminalWidgetProps {
      * question row; omitted/untagged questions are mastery-neutral.
      */
     mastery?: { conceptId: string | null; bloomLevel?: number | null };
+    /**
+     * Coding lab weeks: Submit-attempt cap with best-of-N scoring. The cap is
+     * enforced server-side; this only drives the student-facing badge/lock.
+     */
+    attemptCap?: number;
     onSolved?: () => void;
   } | null;
 }
@@ -131,6 +136,12 @@ export default function CodingTerminalWidget({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [testResults, setTestResults] = useState<SubmitCaseResult[] | null>(null);
   const [solved, setSolved] = useState(false);
+  // Coding lab weeks: attempt-cap state (best-of-N scoring).
+  const attemptCap = submission?.attemptCap;
+  const [attemptsUsed, setAttemptsUsed] = useState(0);
+  const [bestScore, setBestScore] = useState<number | null>(null);
+  const [lastScore, setLastScore] = useState<number | null>(null);
+  const openedAtRef = useRef<number>(Date.now());
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   // Latest values for the assistant's per-send context snapshot.
   const codeRef = useRef(code);
@@ -139,9 +150,32 @@ export default function CodingTerminalWidget({
   outputRef.current = output;
 
   const canSubmit = !!submission;
+  const attemptsLeft = attemptCap != null ? Math.max(0, attemptCap - attemptsUsed) : null;
+  const capReached = attemptsLeft === 0;
+
+  // Load prior attempts so the badge is right before the first Submit.
+  useEffect(() => {
+    if (!submission || attemptCap == null || submission.bank === "daily") return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("coding_attempts")
+        .select("score")
+        .eq("exercise_id", submission.exerciseId)
+        .eq("student_id", submission.studentId);
+      if (cancelled || !data) return;
+      setAttemptsUsed(data.length);
+      const scores = data.map((a) => a.score).filter((s): s is number => typeof s === "number");
+      if (scores.length) setBestScore(Math.max(...scores));
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [submission?.exerciseId, attemptCap]);
 
   const handleSubmit = async () => {
-    if (!submission || isSubmitting) return;
+    if (!submission || isSubmitting || capReached) return;
     setIsSubmitting(true);
     setTestResults(null);
     try {
@@ -151,24 +185,37 @@ export default function CodingTerminalWidget({
           exerciseId: submission.exerciseId,
           language: languageId,
           code,
+          elapsed_ms: Date.now() - openedAtRef.current,
         },
       });
       if (error || data?.error) {
         let msg = data?.error as string | undefined;
         if (!msg && error) {
           try {
-            msg = (await (error as any).context?.json?.())?.error;
+            const body = await (error as any).context?.json?.();
+            msg = body?.error;
+            if (body?.attemptsUsed != null) setAttemptsUsed(body.attemptsUsed);
+            if (body?.bestScore != null) setBestScore(body.bestScore);
           } catch {
             /* ignore */
           }
         }
-        throw new Error(msg || "Please try again in a moment.");
+        if (data?.attemptsUsed != null) setAttemptsUsed(data.attemptsUsed);
+        if (data?.bestScore != null) setBestScore(data.bestScore);
+        throw new Error(
+          msg === "No attempts left"
+            ? "No attempts left — your best score is kept."
+            : msg || "Please try again in a moment.",
+        );
       }
       const results = (data?.results ?? []) as SubmitCaseResult[];
       setTestResults(results);
       const passedCount = results.filter((r) => r.passed).length;
       const allPassed = !!data?.passed;
       setSolved(allPassed);
+      if (data?.attemptsUsed != null) setAttemptsUsed(data.attemptsUsed);
+      if (data?.bestScore != null) setBestScore(data.bestScore);
+      if (typeof data?.score === "number") setLastScore(data.score);
 
       if (allPassed) {
         // The attempt (and weekly progress row) are recorded server-side.
@@ -329,10 +376,22 @@ export default function CodingTerminalWidget({
           {isRunning ? "Running…" : "Run"}
         </Button>
         {canSubmit && (
-          <Button size="sm" className="h-9 gap-2" onClick={handleSubmit} disabled={isRunning || isSubmitting}>
-            {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListChecks className="h-4 w-4" />}
-            {isSubmitting ? "Checking…" : "Submit solution"}
-          </Button>
+          <div className="flex items-center gap-2">
+            {attemptCap != null && (
+              <span
+                className={`text-xs font-medium ${capReached ? "text-destructive" : "text-muted-foreground"}`}
+                title="Your best score across attempts is kept"
+              >
+                {capReached
+                  ? `No attempts left${bestScore != null ? ` — best ${bestScore}` : ""}`
+                  : `Attempt ${Math.min(attemptsUsed + 1, attemptCap)} of ${attemptCap} — best score kept`}
+              </span>
+            )}
+            <Button size="sm" className="h-9 gap-2" onClick={handleSubmit} disabled={isRunning || isSubmitting || capReached}>
+              {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <ListChecks className="h-4 w-4" />}
+              {isSubmitting ? "Checking…" : capReached ? "No attempts left" : "Submit solution"}
+            </Button>
+          </div>
         )}
         {assistantEnabled && courseId && (
           <Button
@@ -438,6 +497,9 @@ export default function CodingTerminalWidget({
               <span>
                 Test cases
                 {testResults && ` — ${testResults.filter((r) => r.passed).length} of ${testResults.length} passed`}
+                {testResults && lastScore != null && ` · Score ${lastScore}`}
+                {testResults && bestScore != null && ` · Best ${bestScore}`}
+                {testResults && attemptsLeft != null && !capReached && ` · ${attemptsLeft} attempt${attemptsLeft === 1 ? "" : "s"} left`}
               </span>
               {solved && (
                 <span className="flex items-center gap-1 text-xs normal-case tracking-normal text-primary">

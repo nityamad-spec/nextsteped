@@ -14,6 +14,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 import { judgeVerdict, Judge0Error, runOnJudge0 } from "../_shared/judge0.ts";
+import { expectedMsFor, paceCurve, WEIGHTS } from "../_shared/attempt-scoring.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,12 +24,16 @@ const corsHeaders = {
 
 const MAX_CASES = 30;
 const CONCURRENCY = 4;
+/** Submit-attempt cap for exercises in coding lab weeks (best-of-3 scoring). */
+const MAX_ATTEMPTS = 3;
 
 const BodySchema = z.object({
   bank: z.enum(["weekly", "daily"]),
   exerciseId: z.string().uuid(),
   language: z.enum(["python", "cpp", "java", "javascript"]),
   code: z.string().min(1).max(50_000),
+  /** ms from opening the exercise to Submit — feeds the pace term. */
+  elapsed_ms: z.number().int().positive().max(24 * 60 * 60 * 1000).optional(),
 });
 
 type Case = { input: string; expected_output: string };
@@ -59,7 +64,7 @@ Deno.serve(async (req) => {
 
     const parsed = BodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return json({ error: "Invalid submission", details: parsed.error.flatten().fieldErrors }, 400);
-    const { bank, exerciseId, language, code } = parsed.data;
+    const { bank, exerciseId, language, code, elapsed_ms } = parsed.data;
 
     const pubTable = bank === "daily" ? "daily_dsa_questions" : "coding_exercises";
     const privTable = bank === "daily" ? "daily_dsa_question_private" : "coding_exercise_private";
@@ -67,7 +72,7 @@ Deno.serve(async (req) => {
 
     const { data: ex } = await admin
       .from(pubTable)
-      .select("id, course_id, published, standard_test_cases")
+      .select("id, course_id, published, standard_test_cases, week_number, bloom_level")
       .eq("id", exerciseId)
       .maybeSingle();
     if (!ex || !ex.published) return json({ error: "This exercise isn't available." }, 404);
@@ -77,6 +82,40 @@ Deno.serve(async (req) => {
       _student_id: userId,
     });
     if (!enrolled) return json({ error: "You're not enrolled in this course." }, 403);
+
+    // Coding lab weeks: 3-attempt cap with best-of-3 scoring (weekly bank only).
+    let capped = false;
+    let attemptsUsed = 0;
+    let bestScore: number | null = null;
+    if (bank === "weekly") {
+      const { data: weekRow } = await admin
+        .from("lesson_plan_weeks")
+        .select("is_coding_week")
+        .eq("course_id", ex.course_id)
+        .eq("week_number", ex.week_number)
+        .maybeSingle();
+      capped = !!weekRow?.is_coding_week;
+
+      if (capped) {
+        const { data: prior } = await admin
+          .from("coding_attempts")
+          .select("score")
+          .eq("exercise_id", exerciseId)
+          .eq("student_id", userId);
+        attemptsUsed = prior?.length ?? 0;
+        const scores = (prior ?? []).map((a) => a.score).filter((s): s is number => typeof s === "number");
+        bestScore = scores.length ? Math.max(...scores) : null;
+
+        if (attemptsUsed >= MAX_ATTEMPTS) {
+          return json({
+            error: "No attempts left",
+            attemptsUsed,
+            bestScore,
+            maxAttempts: MAX_ATTEMPTS,
+          }, 409);
+        }
+      }
+    }
 
     const { data: priv } = await admin.from(privTable).select("hidden_test_cases").eq(fk, exerciseId).maybeSingle();
 
@@ -125,6 +164,18 @@ Deno.serve(async (req) => {
     const passedCount = results.filter((r) => r.passed).length;
     const allPassed = passedCount === results.length;
 
+    // Score the attempt with the shared 80/20 accuracy+pace blend (coding lab
+    // weeks only — daily DSA stays pass/fail). Difficulty isn't modelled on
+    // exercises, so 0.5 keeps expected time at the Bloom base.
+    let score: number | null = null;
+    if (capped) {
+      const item = { difficulty: 0.5, bloom: ex.bloom_level ?? 3, is_correct: allPassed };
+      const expectedMs = expectedMsFor(item);
+      const actualMs = typeof elapsed_ms === "number" && elapsed_ms > 0 ? elapsed_ms : expectedMs;
+      const accuracy = passedCount / results.length;
+      score = Math.round(100 * (WEIGHTS.accuracy * accuracy + WEIGHTS.pace * paceCurve(actualMs / expectedMs)));
+    }
+
     const attempt = {
       student_id: userId,
       course_id: ex.course_id,
@@ -134,6 +185,7 @@ Deno.serve(async (req) => {
       cases_passed: passedCount,
       cases_total: results.length,
       results: results.map((r) => ({ kind: r.kind, index: r.index, passed: r.passed, status: r.status })),
+      ...(capped ? { score, elapsed_ms: elapsed_ms ?? null } : {}),
     };
     const { error: attemptErr } =
       bank === "daily"
@@ -149,7 +201,18 @@ Deno.serve(async (req) => {
       if (progErr) console.error("progress upsert failed", progErr);
     }
 
-    return json({ passed: allPassed, casesPassed: passedCount, casesTotal: results.length, results });
+    if (capped) {
+      attemptsUsed += 1;
+      bestScore = Math.max(bestScore ?? 0, score ?? 0);
+    }
+
+    return json({
+      passed: allPassed,
+      casesPassed: passedCount,
+      casesTotal: results.length,
+      results,
+      ...(capped ? { score, attemptsUsed, bestScore, maxAttempts: MAX_ATTEMPTS } : {}),
+    });
   } catch (e) {
     if (e instanceof Judge0Error) return json({ error: e.message }, 502);
     console.error("submit-coding-solution error", e);

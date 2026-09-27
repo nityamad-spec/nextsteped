@@ -113,6 +113,13 @@
       "when": 1790090821131,
       "tag": "0015_course_destructive_reset_gate",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1790474858142,
+      "tag": "0016_coding_attempts_score_elapsed",
+      "breakpoints": true
     }
   ]
 }
