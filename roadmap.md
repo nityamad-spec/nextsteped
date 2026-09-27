@@ -13,3 +13,5 @@
 - [x] Guard destructive syllabus resets: typed course-code confirmation, student-impact warning, admin approval gate, admin approvals list
 - [x] What's new: fix 401 auth failure in course-news (service-role token verification)
 - [x] What's new guardrails: role/topic-anchored searches with lesson-plan fallback, ~2:1 India/global mix, keyword pre-filter, job-board and social host blocklist, India badge on cards
+
+- [x] Coding lab weeks: 3-attempt Submit cap with best-of-3 scoring (80% accuracy + 20% pace), server-enforced, student-facing badges on terminal + Learning Path (2026-09-27)
