@@ -1,4 +1,4 @@
-import { useState, useMemo, useRef } from "react";
+import { useState, useMemo, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Terminal, Play, RotateCcw, X, Loader2, ChevronDown, ChevronUp, FileCode2, Bot, CheckCircle2, XCircle, ListChecks } from "lucide-react";
@@ -175,7 +175,7 @@ export default function CodingTerminalWidget({
   }, [submission?.exerciseId, attemptCap]);
 
   const handleSubmit = async () => {
-    if (!submission || isSubmitting) return;
+    if (!submission || isSubmitting || capReached) return;
     setIsSubmitting(true);
     setTestResults(null);
     try {
@@ -185,24 +185,37 @@ export default function CodingTerminalWidget({
           exerciseId: submission.exerciseId,
           language: languageId,
           code,
+          elapsed_ms: Date.now() - openedAtRef.current,
         },
       });
       if (error || data?.error) {
         let msg = data?.error as string | undefined;
         if (!msg && error) {
           try {
-            msg = (await (error as any).context?.json?.())?.error;
+            const body = await (error as any).context?.json?.();
+            msg = body?.error;
+            if (body?.attemptsUsed != null) setAttemptsUsed(body.attemptsUsed);
+            if (body?.bestScore != null) setBestScore(body.bestScore);
           } catch {
             /* ignore */
           }
         }
-        throw new Error(msg || "Please try again in a moment.");
+        if (data?.attemptsUsed != null) setAttemptsUsed(data.attemptsUsed);
+        if (data?.bestScore != null) setBestScore(data.bestScore);
+        throw new Error(
+          msg === "No attempts left"
+            ? "No attempts left — your best score is kept."
+            : msg || "Please try again in a moment.",
+        );
       }
       const results = (data?.results ?? []) as SubmitCaseResult[];
       setTestResults(results);
       const passedCount = results.filter((r) => r.passed).length;
       const allPassed = !!data?.passed;
       setSolved(allPassed);
+      if (data?.attemptsUsed != null) setAttemptsUsed(data.attemptsUsed);
+      if (data?.bestScore != null) setBestScore(data.bestScore);
+      if (typeof data?.score === "number") setLastScore(data.score);
 
       if (allPassed) {
         // The attempt (and weekly progress row) are recorded server-side.
