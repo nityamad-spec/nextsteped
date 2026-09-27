@@ -291,21 +291,29 @@ const StudentLearningPath = () => {
   // student's per-exercise completion (terminal opened for that exercise).
   const [exercisesByUnit, setExercisesByUnit] = useState<Record<number, PublishedCodingExercise[]>>({});
   const [completedExerciseIds, setCompletedExerciseIds] = useState<Set<string>>(new Set());
+  // Coding lab weeks: per-exercise Submit-attempt usage + best score (best-of-3).
+  const [exerciseAttempts, setExerciseAttempts] = useState<Record<string, { used: number; best: number | null }>>({});
   const hasCodingUnits = lessonPlan.some((w) => w.is_coding_week);
   useEffect(() => {
     if (!enrolledCourseId || !codingApproved || !hasCodingUnits || !user?.id) {
       setExercisesByUnit({});
       setCompletedExerciseIds(new Set());
+      setExerciseAttempts({});
       return;
     }
     let cancelled = false;
     (async () => {
       try {
-        const [rows, progress] = await Promise.all([
+        const [rows, progress, attempts] = await Promise.all([
           fetchPublishedExercises(enrolledCourseId),
           supabase
             .from("coding_exercise_progress")
             .select("exercise_id")
+            .eq("student_id", user.id)
+            .eq("course_id", enrolledCourseId),
+          supabase
+            .from("coding_attempts")
+            .select("exercise_id, score")
             .eq("student_id", user.id)
             .eq("course_id", enrolledCourseId),
         ]);
@@ -317,6 +325,15 @@ const StudentLearningPath = () => {
         setExercisesByUnit(map);
         if (!progress.error) {
           setCompletedExerciseIds(new Set((progress.data ?? []).map((r) => r.exercise_id)));
+        }
+        if (!attempts.error) {
+          const am: Record<string, { used: number; best: number | null }> = {};
+          (attempts.data ?? []).forEach((a) => {
+            const entry = (am[a.exercise_id] ??= { used: 0, best: null });
+            entry.used += 1;
+            if (typeof a.score === "number") entry.best = Math.max(entry.best ?? 0, a.score);
+          });
+          setExerciseAttempts(am);
         }
       } catch (err) {
         if (!cancelled) console.error("Coding exercises load error:", err);
@@ -473,6 +490,7 @@ const StudentLearningPath = () => {
           isCodingWeek={!!unit.is_coding_week}
           exercises={exercisesByUnit[unit.day] ?? []}
           completedExerciseIds={completedExerciseIds}
+          exerciseAttempts={exerciseAttempts}
           onOpenExercise={(ex) => navigate(`/student/chat?terminal=1&unit=${unit.day}&exercise=${ex.id}`)}
           quizScore={taken?.score}
           quizAvailable={availableQuizDays.has(unit.day)}
