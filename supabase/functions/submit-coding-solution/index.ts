@@ -169,19 +169,11 @@ Deno.serve(async (req) => {
     // exercises, so 0.5 keeps expected time at the Bloom base.
     let score: number | null = null;
     if (capped) {
-      const scored = scoreAttempt([
-        {
-          difficulty: 0.5,
-          bloom: ex.bloom_level ?? 3,
-          is_correct: allPassed,
-          // Accuracy is the fraction of cases passed, not all-or-nothing:
-          // scoreAttempt weights a single item, so pass the ratio through
-          // via a synthetic all-correct item scaled below.
-          time_ms: elapsed_ms,
-        },
-      ]);
+      const item = { difficulty: 0.5, bloom: ex.bloom_level ?? 3, is_correct: allPassed };
+      const expectedMs = expectedMsFor(item);
+      const actualMs = typeof elapsed_ms === "number" && elapsed_ms > 0 ? elapsed_ms : expectedMs;
       const accuracy = passedCount / results.length;
-      score = Math.round(100 * (0.8 * accuracy + 0.2 * scored.pace));
+      score = Math.round(100 * (WEIGHTS.accuracy * accuracy + WEIGHTS.pace * paceCurve(actualMs / expectedMs)));
     }
 
     const attempt = {
