@@ -64,7 +64,7 @@ Deno.serve(async (req) => {
 
     const parsed = BodySchema.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return json({ error: "Invalid submission", details: parsed.error.flatten().fieldErrors }, 400);
-    const { bank, exerciseId, language, code } = parsed.data;
+    const { bank, exerciseId, language, code, elapsed_ms } = parsed.data;
 
     const pubTable = bank === "daily" ? "daily_dsa_questions" : "coding_exercises";
     const privTable = bank === "daily" ? "daily_dsa_question_private" : "coding_exercise_private";
@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
 
     const { data: ex } = await admin
       .from(pubTable)
-      .select("id, course_id, published, standard_test_cases")
+      .select("id, course_id, published, standard_test_cases, week_number, bloom_level")
       .eq("id", exerciseId)
       .maybeSingle();
     if (!ex || !ex.published) return json({ error: "This exercise isn't available." }, 404);
@@ -82,6 +82,40 @@ Deno.serve(async (req) => {
       _student_id: userId,
     });
     if (!enrolled) return json({ error: "You're not enrolled in this course." }, 403);
+
+    // Coding lab weeks: 3-attempt cap with best-of-3 scoring (weekly bank only).
+    let capped = false;
+    let attemptsUsed = 0;
+    let bestScore: number | null = null;
+    if (bank === "weekly") {
+      const { data: weekRow } = await admin
+        .from("lesson_plan_weeks")
+        .select("is_coding_week")
+        .eq("course_id", ex.course_id)
+        .eq("week_number", ex.week_number)
+        .maybeSingle();
+      capped = !!weekRow?.is_coding_week;
+
+      if (capped) {
+        const { data: prior } = await admin
+          .from("coding_attempts")
+          .select("score")
+          .eq("exercise_id", exerciseId)
+          .eq("student_id", userId);
+        attemptsUsed = prior?.length ?? 0;
+        const scores = (prior ?? []).map((a) => a.score).filter((s): s is number => typeof s === "number");
+        bestScore = scores.length ? Math.max(...scores) : null;
+
+        if (attemptsUsed >= MAX_ATTEMPTS) {
+          return json({
+            error: "No attempts left",
+            attemptsUsed,
+            bestScore,
+            maxAttempts: MAX_ATTEMPTS,
+          }, 409);
+        }
+      }
+    }
 
     const { data: priv } = await admin.from(privTable).select("hidden_test_cases").eq(fk, exerciseId).maybeSingle();
 
