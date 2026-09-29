@@ -89,7 +89,7 @@ Deno.serve(async (req) => {
     if (!member) return json({ error: "Not authorised for this course." }, 403);
 
     const [{ data: course }, { data: week }, { data: concepts }, { data: existing }] = await Promise.all([
-      admin.from("courses").select("name, code").eq("id", courseId).maybeSingle(),
+      admin.from("courses").select("name, course_code").eq("id", courseId).maybeSingle(),
       admin.from("lesson_plan_weeks").select("week_number, week_name, overview, concepts").eq("course_id", courseId).eq("week_number", weekNumber).maybeSingle(),
       admin.from("concepts").select("id, concept_code").eq("course_id", courseId),
       admin.from("practice_pool_questions").select("question, title, concept_code").eq("course_id", courseId).neq("status", "archived").limit(1000),
@@ -103,7 +103,7 @@ Deno.serve(async (req) => {
     const conceptIdByCode = new Map((concepts ?? []).map((c) => [c.concept_code.toLowerCase(), c.id]));
     const avoid = (existing ?? []).slice(-60).map((e) => `- ${(e.title ?? e.question).slice(0, 120)}`).join("\n");
 
-    const shared = `Course: "${course?.name ?? ""}" (${course?.code ?? ""}).
+    const shared = `Course: "${course?.name ?? ""}" (${course?.course_code ?? ""}).
 Week ${week.week_number}: ${week.week_name ?? ""}
 Week overview: ${week.overview ?? "(none)"}
 Topics taught this week: ${weekConcepts.join("; ") || "(see overview)"}
