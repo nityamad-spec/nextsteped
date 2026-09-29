@@ -28,7 +28,7 @@ const CONCURRENCY = 4;
 const MAX_ATTEMPTS = 3;
 
 const BodySchema = z.object({
-  bank: z.enum(["weekly", "daily"]),
+  bank: z.enum(["weekly", "daily", "practice"]),
   exerciseId: z.string().uuid(),
   language: z.enum(["python", "cpp", "java", "javascript"]),
   code: z.string().min(1).max(50_000),
@@ -66,15 +66,28 @@ Deno.serve(async (req) => {
     if (!parsed.success) return json({ error: "Invalid submission", details: parsed.error.flatten().fieldErrors }, 400);
     const { bank, exerciseId, language, code, elapsed_ms } = parsed.data;
 
-    const pubTable = bank === "daily" ? "daily_dsa_questions" : "coding_exercises";
-    const privTable = bank === "daily" ? "daily_dsa_question_private" : "coding_exercise_private";
-    const fk = bank === "daily" ? "question_id" : "exercise_id";
+    const pubTable =
+      bank === "daily" ? "daily_dsa_questions" : bank === "practice" ? "practice_pool_questions" : "coding_exercises";
+    const privTable =
+      bank === "daily" ? "daily_dsa_question_private" : bank === "practice" ? "practice_pool_private" : "coding_exercise_private";
+    const fk = bank === "weekly" ? "exercise_id" : "question_id";
 
-    const { data: ex } = await admin
-      .from(pubTable)
-      .select("id, course_id, published, standard_test_cases, week_number, bloom_level")
-      .eq("id", exerciseId)
-      .maybeSingle();
+    let ex: any = null;
+    if (bank === "practice") {
+      const { data } = await admin
+        .from("practice_pool_questions")
+        .select("id, course_id, status, kind, standard_test_cases, week_number, bloom_level")
+        .eq("id", exerciseId)
+        .maybeSingle();
+      ex = data && data.status === "approved" && data.kind === "coding" ? { ...data, published: true } : null;
+    } else {
+      const { data } = await admin
+        .from(pubTable)
+        .select("id, course_id, published, standard_test_cases, week_number, bloom_level")
+        .eq("id", exerciseId)
+        .maybeSingle();
+      ex = data;
+    }
     if (!ex || !ex.published) return json({ error: "This exercise isn't available." }, 404);
 
     const { data: enrolled } = await admin.rpc("is_active_enrollment", {
@@ -187,11 +200,14 @@ Deno.serve(async (req) => {
       results: results.map((r) => ({ kind: r.kind, index: r.index, passed: r.passed, status: r.status })),
       ...(capped ? { score, elapsed_ms: elapsed_ms ?? null } : {}),
     };
-    const { error: attemptErr } =
-      bank === "daily"
-        ? await admin.from("daily_dsa_attempts").insert({ ...attempt, question_id: exerciseId })
-        : await admin.from("coding_attempts").insert({ ...attempt, exercise_id: exerciseId });
-    if (attemptErr) console.error("attempt insert failed", attemptErr);
+    // Practice-pool items are ungraded practice: no attempt/progress rows.
+    if (bank !== "practice") {
+      const { error: attemptErr } =
+        bank === "daily"
+          ? await admin.from("daily_dsa_attempts").insert({ ...attempt, question_id: exerciseId })
+          : await admin.from("coding_attempts").insert({ ...attempt, exercise_id: exerciseId });
+      if (attemptErr) console.error("attempt insert failed", attemptErr);
+    }
 
     if (allPassed && bank === "weekly") {
       const { error: progErr } = await admin.from("coding_exercise_progress").upsert(
