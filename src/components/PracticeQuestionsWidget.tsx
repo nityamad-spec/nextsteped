@@ -13,6 +13,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import { supabase } from "@/integrations/supabase/client";
+import { useCourseType } from "@/hooks/useCourseType";
+import CodingTerminalWidget from "@/components/CodingTerminalWidget";
 
 interface PracticeResult {
   id: string;
@@ -76,7 +78,16 @@ type Phase = "prompt" | "loading" | "active" | "review" | "review-history";
 interface GeneratedQuestion {
   id: string;
   question: string;
-  type: "mcq" | "true_false" | "short_answer";
+  type: "mcq" | "true_false" | "short_answer" | "coding";
+  /** "pool" = professor-approved pool, "ai" = generated top-up. */
+  source?: "pool" | "ai";
+  title?: string | null;
+  language?: string | null;
+  starter_code?: string | null;
+  input_spec?: string | null;
+  output_spec?: string | null;
+  constraints?: string | null;
+  test_cases?: { input: string; expected_output: string }[];
   options?: string[];
   answer: string;
   model_answer?: string | null;
@@ -104,6 +115,10 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   const shortAnswer = useShortAnswerGrading();
 
   const [submitting, setSubmitting] = useState(false);
+  // Upskilling (employment) courses serve from the professor's approved pool.
+  const { isEmployment } = useCourseType(enrolledCourseId ?? null);
+  const [codingOpen, setCodingOpen] = useState(false);
+  const [codingSolved, setCodingSolved] = useState<Set<string>>(new Set());
 
   // Per-question time on task (ms), needed for the pace half of the score.
   // Active-time only: pauses on tab hide, window blur and idle.
@@ -135,7 +150,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   }, [initialReviewSessionId, practiceHistory]);
 
   const generateQuestions = useCallback(async () => {
-    if (!prompt.trim()) return;
+    if (!isEmployment && !prompt.trim()) return;
     if (!enrolledCourseId) {
       toast.error("No enrolled course found.");
       return;
@@ -143,9 +158,13 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
     setPhase("loading");
 
     try {
-      const { data, error } = await supabase.functions.invoke("generate-practice-questions", {
-        body: { prompt, courseId: enrolledCourseId },
-      });
+      const { data, error } = isEmployment
+        ? await supabase.functions.invoke("serve-practice-set", {
+            body: { courseId: enrolledCourseId, count: 10 },
+          })
+        : await supabase.functions.invoke("generate-practice-questions", {
+            body: { prompt, courseId: enrolledCourseId },
+          });
 
       if (error || !data || (data as any).error) {
         const msg = (data as any)?.error || error?.message || "Failed to generate questions";
@@ -171,6 +190,8 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
       setResults(null);
       reasoning.reset();
       shortAnswer.reset();
+      setCodingSolved(new Set());
+      setCodingOpen(false);
 
       setPhase("active");
     } catch (e) {
@@ -178,12 +199,15 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
       toast.error("Something went wrong. Please try again.");
       setPhase("prompt");
     }
-  }, [prompt, enrolledCourseId]);
+  }, [prompt, enrolledCourseId, isEmployment]);
 
   const currentQuestion = questions[currentIndex];
   const isShort = currentQuestion?.type === "short_answer";
+  const isCoding = currentQuestion?.type === "coding";
   const isAnswered = currentQuestion
-    ? isShort
+    ? isCoding
+      ? !!answers[currentQuestion.id]
+      : isShort
       ? isShortAnswerComplete(shortAnswer.answers[currentQuestion.id])
       : !!answers[currentQuestion.id]
     : false;
@@ -196,7 +220,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
 
   /** Short answers are their own rationale — no separate reasoning box. */
   const needsReasoning = (q: GeneratedQuestion) =>
-    q.type !== "short_answer" && requiresReasoning(q.bloom_level);
+    q.type !== "short_answer" && q.type !== "coding" && requiresReasoning(q.bloom_level);
 
   const shortAnswerInput = (q: GeneratedQuestion) => ({
     questionId: q.id,
@@ -213,6 +237,10 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
 
   const handleReveal = () => {
     if (!currentQuestion || !isAnswered) return;
+    if (isCoding) {
+      setRevealed(prev => new Set(prev).add(currentQuestion.id));
+      return;
+    }
     if (isShort) {
       shortAnswer.setShowErrors(false);
       if (studentId) shortAnswer.grade(shortAnswerInput(currentQuestion));
@@ -277,9 +305,13 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
       const scoreItems: ScoreItem[] = [];
       const answerDetails = questions.map(q => {
         const short = q.type === "short_answer";
+        const coding = q.type === "coding";
         const userAnswer = short ? (shortAnswers[q.id] ?? "") : (answers[q.id] || "");
         const grade = short ? grades[q.id] : undefined;
-        const isCorrect = short
+        // Coding practice counts as correct only when every test case passed.
+        const isCorrect = coding
+          ? codingSolved.has(q.id)
+          : short
           ? grade?.verdict
             ? grade.verdict === "accepted"
             : localExactMatch(userAnswer, [q.answer, q.model_answer])
@@ -292,7 +324,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
           is_correct: isCorrect,
           time_ms: timeMs,
           // Short answers are their own rationale — no separate verdict.
-          verdict: short ? null : verdictFor(evaluations, q.id),
+          verdict: short || coding ? null : verdictFor(evaluations, q.id),
           concept_code: q.topic ?? null,
         });
         return {
@@ -330,6 +362,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
   };
 
   const getAnswerCorrectness = (q: GeneratedQuestion) => {
+    if (q.type === "coding") return codingSolved.has(q.id);
     if (q.type === "short_answer") {
       const text = shortAnswer.answers[q.id] ?? "";
       const grade = shortAnswer.grades[q.id];
@@ -492,6 +525,16 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
                   Tell us what you want to be tested on. If you don't specify, we'll generate questions based on where you are in the course.
                 </p>
               </div>
+              {isEmployment ? (
+                <div className="space-y-3">
+                  <p className="text-xs text-muted-foreground">
+                    You'll get 10 questions from your professor's question bank, focused on your weakest topics from the weeks unlocked so far.
+                  </p>
+                  <Button onClick={generateQuestions} className="w-full gap-2">
+                    <Sparkles className="h-4 w-4" /> Start Practice
+                  </Button>
+                </div>
+              ) : (
               <div className="space-y-3 text-left">
                 <Textarea
                   value={prompt}
@@ -504,6 +547,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
                   <Sparkles className="h-4 w-4" /> Generate Practice Questions
                 </Button>
               </div>
+              )}
             </div>
           </div>
         )}
@@ -527,7 +571,7 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
         <div className="flex-1 flex flex-col items-center justify-center gap-4">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
           <div className="text-center">
-            <p className="font-medium">Generating your practice questions…</p>
+            <p className="font-medium">{isEmployment ? "Preparing your practice set…" : "Generating your practice questions…"}</p>
             <p className="text-sm text-muted-foreground mt-1">This usually takes a few seconds</p>
           </div>
         </div>
@@ -780,16 +824,16 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
                     : <><XCircle className="h-4 w-4 text-destructive" /><span className="text-sm font-medium text-destructive">Incorrect</span></>
                   }
                 </div>
-                {!getAnswerCorrectness(currentQuestion) && (
+                {!getAnswerCorrectness(currentQuestion) && !isCoding && (
                   <p className="text-xs"><span className="text-muted-foreground">Correct answer: </span><span className="font-medium">{currentQuestion.answer}</span></p>
                 )}
-                <div className="rounded-lg bg-background p-3">
+                {currentQuestion.explanation && <div className="rounded-lg bg-background p-3">
                   <div className="flex items-start gap-2 mb-1">
                     <Lightbulb className="h-3 w-3 text-primary mt-0.5 shrink-0" />
                     <span className="text-[10px] font-semibold text-primary">Explanation</span>
                   </div>
                   <p className="text-xs text-muted-foreground">{currentQuestion.explanation}</p>
-                </div>
+                </div>}
               </CardContent>
             </Card>
           )}
