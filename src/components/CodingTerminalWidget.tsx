@@ -256,7 +256,9 @@ export default function CodingTerminalWidget({
           title: "Solved!",
           description: submission.bank === "daily"
             ? "All test cases passed — today's problem is done."
-            : "All test cases passed — exercise marked as solved.",
+            : submission.bank === "practice"
+              ? "All test cases passed."
+              : "All test cases passed — exercise marked as solved.",
         });
       } else {
         toast({
