@@ -16,6 +16,7 @@ import {
   Layers,
   FlaskConical,
   Sparkles,
+  ListChecks,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
@@ -258,6 +259,7 @@ const CourseSetup = () => {
       if (next["lesson-plan"] !== "Complete") {
         next["project-lab"] = "Not Started";
         next["dsa-questions"] = "Not Started";
+        next["practice-pool"] = "Not Started";
       }
 
       // Backfill or clear `completed_at` in teacher_setup_progress to keep the
