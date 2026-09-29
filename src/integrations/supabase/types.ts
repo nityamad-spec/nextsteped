@@ -2551,6 +2551,214 @@ export type Database = {
           },
         ]
       }
+      practice_pool_private: {
+        Row: {
+          answer: string | null
+          answer_max_words: number | null
+          explanation: string | null
+          hidden_test_cases: Json | null
+          model_answer: string | null
+          question_id: string
+          reference_solution: string | null
+          updated_at: string
+          validation_report: Json | null
+        }
+        Insert: {
+          answer?: string | null
+          answer_max_words?: number | null
+          explanation?: string | null
+          hidden_test_cases?: Json | null
+          model_answer?: string | null
+          question_id: string
+          reference_solution?: string | null
+          updated_at?: string
+          validation_report?: Json | null
+        }
+        Update: {
+          answer?: string | null
+          answer_max_words?: number | null
+          explanation?: string | null
+          hidden_test_cases?: Json | null
+          model_answer?: string | null
+          question_id?: string
+          reference_solution?: string | null
+          updated_at?: string
+          validation_report?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_pool_private_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: true
+            referencedRelation: "practice_pool_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practice_pool_questions: {
+        Row: {
+          bloom_level: number
+          concept_code: string | null
+          concept_id: string | null
+          constraints: string | null
+          course_id: string
+          created_at: string
+          created_by: string | null
+          difficulty: number
+          format: string
+          id: string
+          input_spec: string | null
+          kind: string
+          language: string | null
+          options: Json | null
+          output_spec: string | null
+          question: string
+          standard_test_cases: Json | null
+          starter_code: string | null
+          status: string
+          title: string | null
+          updated_at: string
+          week_number: number | null
+        }
+        Insert: {
+          bloom_level?: number
+          concept_code?: string | null
+          concept_id?: string | null
+          constraints?: string | null
+          course_id: string
+          created_at?: string
+          created_by?: string | null
+          difficulty?: number
+          format: string
+          id?: string
+          input_spec?: string | null
+          kind?: string
+          language?: string | null
+          options?: Json | null
+          output_spec?: string | null
+          question: string
+          standard_test_cases?: Json | null
+          starter_code?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          week_number?: number | null
+        }
+        Update: {
+          bloom_level?: number
+          concept_code?: string | null
+          concept_id?: string | null
+          constraints?: string | null
+          course_id?: string
+          created_at?: string
+          created_by?: string | null
+          difficulty?: number
+          format?: string
+          id?: string
+          input_spec?: string | null
+          kind?: string
+          language?: string | null
+          options?: Json | null
+          output_spec?: string | null
+          question?: string
+          standard_test_cases?: Json | null
+          starter_code?: string | null
+          status?: string
+          title?: string | null
+          updated_at?: string
+          week_number?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_pool_questions_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: false
+            referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_pool_questions_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practice_pool_seen: {
+        Row: {
+          course_id: string
+          last_seen_at: string
+          question_id: string
+          seen_count: number
+          student_id: string
+        }
+        Insert: {
+          course_id: string
+          last_seen_at?: string
+          question_id: string
+          seen_count?: number
+          student_id: string
+        }
+        Update: {
+          course_id?: string
+          last_seen_at?: string
+          question_id?: string
+          seen_count?: number
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_pool_seen_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "practice_pool_seen_question_id_fkey"
+            columns: ["question_id"]
+            isOneToOne: false
+            referencedRelation: "practice_pool_questions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      practice_pool_topups: {
+        Row: {
+          course_id: string
+          created_at: string
+          from_pool: number
+          id: string
+          requested: number
+          student_id: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          from_pool: number
+          id?: string
+          requested: number
+          student_id: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          from_pool?: number
+          id?: string
+          requested?: number
+          student_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "practice_pool_topups_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       profiles: {
         Row: {
           active_course_id: string | null
