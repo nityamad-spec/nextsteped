@@ -16,6 +16,7 @@ import {
   Layers,
   FlaskConical,
   Sparkles,
+  ListChecks,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
@@ -42,6 +43,7 @@ const CARDS: CardDef[] = [
   { id: "concept-review", title: "Concept Review", description: "Review concepts extracted from your materials before generating the lesson plan.", icon: Layers, path: "/teacher/setup/concept-review" },
   { id: "lesson-plan", title: "Generate Lesson Plan", description: "Generate a structured weekly lesson plan based on your confirmed concepts.", icon: ClipboardList, path: "/teacher/setup/lesson-plan" },
   { id: "dsa-questions", title: "Generate DSA Questions", description: "Employment pathway only. Optional. Build the daily-practice coding question bank students solve on their home page.", icon: Code2, path: "/teacher/setup/dsa-questions", optional: true },
+  { id: "practice-pool", title: "Practice Question Pool", description: "Employment pathway only. Optional. Pre-generate and approve the practice questions (coding and non-coding) students get when they click Practice.", icon: ListChecks, path: "/teacher/setup/practice-pool", optional: true },
   { id: "project-lab", title: "Project Lab", description: "Optional. Author hands-on labs that appear in your students' Project Lab tab.", icon: FlaskConical, path: "/teacher/setup/project-lab", optional: true },
   { id: "soft-skills", title: "Soft Skills", description: "Employment pathway only. Author workplace-readiness modules for your students' Learning Path.", icon: Sparkles, path: "/teacher/setup/soft-skills", optional: true },
   { id: "diagnostic", title: "Approve Diagnostic Quiz", description: "Review and approve the AI-generated diagnostic quiz for your students.", icon: Brain, path: "/teacher/setup/diagnostic" },
@@ -85,6 +87,7 @@ const CourseSetup = () => {
     "concept-review": "Not Started",
     "lesson-plan": "Not Started",
     "dsa-questions": "Not Started",
+    "practice-pool": "Not Started",
     "project-lab": "Not Started",
     "soft-skills": "Not Started",
     diagnostic: "Not Started",
@@ -102,6 +105,7 @@ const CourseSetup = () => {
       "concept-review": "Not Started",
       "lesson-plan": "Not Started",
       "dsa-questions": "Not Started",
+      "practice-pool": "Not Started",
       "project-lab": "Not Started",
       "soft-skills": "Not Started",
       diagnostic: "Not Started",
@@ -116,6 +120,7 @@ const CourseSetup = () => {
         "concept-review": "Not Started",
         "lesson-plan": "Not Started",
         "dsa-questions": "Not Started",
+        "practice-pool": "Not Started",
         "project-lab": "Not Started",
         "soft-skills": "Not Started",
         diagnostic: "Not Started",
@@ -214,6 +219,15 @@ const CourseSetup = () => {
         if ((dsaCount ?? 0) > 0) next["dsa-questions"] = "Complete";
         else if (opened["dsa-questions"]) next["dsa-questions"] = "In Progress";
 
+        // Practice pool (employment pathway, optional): Complete once any question is approved.
+        const { count: poolCount } = await supabase
+          .from("practice_pool_questions")
+          .select("id", { count: "exact", head: true })
+          .eq("course_id", courseId)
+          .eq("status", "approved");
+        if ((poolCount ?? 0) > 0) next["practice-pool"] = "Complete";
+        else if (opened["practice-pool"]) next["practice-pool"] = "In Progress";
+
         // Exam Mode (TA settings)
         const { data: ta } = await supabase
           .from("course_ta_settings")
@@ -244,12 +258,13 @@ const CourseSetup = () => {
       if (next["lesson-plan"] !== "Complete") {
         next["project-lab"] = "Not Started";
         next["dsa-questions"] = "Not Started";
+        next["practice-pool"] = "Not Started";
       }
 
       // Backfill or clear `completed_at` in teacher_setup_progress to keep the
       // persisted state in sync with the derived status. Fire-and-forget.
       if (courseId) {
-        const AUTO_COMPLETE_STEPS = ["upload", "concept-review", "lesson-plan", "diagnostic", "exam-mode", "project-lab", "soft-skills", "dsa-questions"];
+        const AUTO_COMPLETE_STEPS = ["upload", "concept-review", "lesson-plan", "diagnostic", "exam-mode", "project-lab", "soft-skills", "dsa-questions", "practice-pool"];
         for (const stepId of AUTO_COMPLETE_STEPS) {
           if (next[stepId] === "Complete" && !completed[stepId]) {
             void markStepCompleted(user.id, stepId, courseId, { source: "CourseSetup.backfill" });
@@ -269,14 +284,14 @@ const CourseSetup = () => {
   const isCardLocked = (id: string) => {
     if (id === "concept-review") return statuses.upload !== "Complete";
     if (id === "lesson-plan") return statuses["concept-review"] !== "Complete";
-    if (id === "project-lab" || id === "dsa-questions") return statuses["lesson-plan"] !== "Complete";
+    if (id === "project-lab" || id === "dsa-questions" || id === "practice-pool") return statuses["lesson-plan"] !== "Complete";
     return false;
   };
 
   const lockMessage = (id: string) => {
     if (id === "concept-review") return "Upload your syllabus in Step 1 to unlock this.";
     if (id === "lesson-plan") return "Confirm your concepts in Step 2 to unlock this.";
-    if (id === "project-lab" || id === "dsa-questions") return "Publish your lesson plan in Step 3 to unlock this.";
+    if (id === "project-lab" || id === "dsa-questions" || id === "practice-pool") return "Publish your lesson plan in Step 3 to unlock this.";
     return "";
   };
 
@@ -295,7 +310,7 @@ const CourseSetup = () => {
     // The Project Lab step is opt-in per teacher: admins grant it explicitly.
     if (c.id === "project-lab") return permReady && isExactlyGranted(PROJECT_LAB_SETUP_PATH);
     // Soft Skills + DSA Questions exist only for employment-pathway courses.
-    if (c.id === "soft-skills" || c.id === "dsa-questions") return typeReady && isEmployment;
+    if (c.id === "soft-skills" || c.id === "dsa-questions" || c.id === "practice-pool") return typeReady && isEmployment;
     return true;
   });
 

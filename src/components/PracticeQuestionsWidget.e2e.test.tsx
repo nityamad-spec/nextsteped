@@ -37,6 +37,8 @@ vi.mock("@/integrations/supabase/client", () => ({
   },
 }));
 
+vi.mock("@/hooks/useCourseType", () => ({ useCourseType: () => ({ ready: true, isEmployment: false, courseType: "academic" }) }));
+
 vi.mock("sonner", () => ({
   toast: Object.assign(vi.fn(), { error: vi.fn(), success: vi.fn() }),
 }));
