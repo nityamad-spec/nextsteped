@@ -121,7 +121,6 @@ const CourseSetup = () => {
         "lesson-plan": "Not Started",
         "dsa-questions": "Not Started",
         "practice-pool": "Not Started",
-      "practice-pool": "Not Started",
         "project-lab": "Not Started",
         "soft-skills": "Not Started",
         diagnostic: "Not Started",
