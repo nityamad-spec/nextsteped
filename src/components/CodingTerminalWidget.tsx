@@ -86,7 +86,7 @@ interface CodingTerminalWidgetProps {
     testCases: CodingTestCase[];
     /** "daily" = Daily DSA bank: attempts recorded in daily_dsa_attempts, and a
      *  passing attempt is what marks the question solved (no progress row). */
-    bank?: "daily" | "weekly";
+    bank?: "daily" | "weekly" | "practice";
     /**
      * Daily-bank mastery context: a first full pass on a concept-tagged
      * question nudges mastery at practice strength. Pass through from the
@@ -181,7 +181,7 @@ export default function CodingTerminalWidget({
     try {
       const { data, error } = await supabase.functions.invoke("submit-coding-solution", {
         body: {
-          bank: submission.bank === "daily" ? "daily" : "weekly",
+          bank: submission.bank ?? "weekly",
           exerciseId: submission.exerciseId,
           language: languageId,
           code,
