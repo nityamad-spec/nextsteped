@@ -555,6 +555,38 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
     );
   }
 
+  // Coding practice item: full-area terminal graded against the pool item's tests.
+  if (phase === "active" && codingOpen && currentQuestion?.type === "coding" && enrolledCourseId && studentId) {
+    const qid = currentQuestion.id;
+    return (
+      <div className="flex flex-col h-full">
+        <CodingTerminalWidget
+          key={qid}
+          onClose={() => {
+            setCodingOpen(false);
+            setAnswers(prev => ({ ...prev, [qid]: prev[qid] || "attempted" }));
+          }}
+          initialCode={currentQuestion.starter_code}
+          initialLanguage={currentQuestion.language}
+          exerciseTitle={currentQuestion.title}
+          exerciseStatement={currentQuestion.question}
+          courseId={enrolledCourseId}
+          submission={{
+            exerciseId: qid,
+            courseId: enrolledCourseId,
+            studentId,
+            testCases: currentQuestion.test_cases ?? [],
+            bank: "practice",
+            onSolved: () => {
+              setCodingSolved(prev => new Set(prev).add(qid));
+              setAnswers(prev => ({ ...prev, [qid]: "solved" }));
+            },
+          }}
+        />
+      </div>
+    );
+  }
+
   // Loading phase
   if (phase === "loading") {
     return (
@@ -713,11 +745,35 @@ const PracticeQuestionsWidget = ({ onClose, onSaveResult, practiceHistory = [], 
           <div className="flex items-center gap-2 mb-1">
             <Badge variant="outline" className="text-xs">{currentQuestion.topic}</Badge>
             <Badge variant="secondary" className="text-xs capitalize">{currentQuestion.type.replace("_", "/")}</Badge>
+            {currentQuestion.source === "ai" && (
+              <Badge variant="outline" className="text-[10px]">AI-generated</Badge>
+            )}
           </div>
+          {isCoding && currentQuestion.title && (
+            <p className="text-base font-semibold">{currentQuestion.title}</p>
+          )}
 
           <p className="text-sm leading-relaxed whitespace-pre-wrap font-medium">
             {currentQuestion.question}
           </p>
+
+          {isCoding && (
+            <div className="space-y-2">
+              {currentQuestion.input_spec && <p className="text-xs"><span className="font-semibold">Input: </span>{currentQuestion.input_spec}</p>}
+              {currentQuestion.output_spec && <p className="text-xs"><span className="font-semibold">Output: </span>{currentQuestion.output_spec}</p>}
+              {currentQuestion.constraints && <p className="text-xs text-muted-foreground"><span className="font-semibold">Constraints: </span>{currentQuestion.constraints}</p>}
+              {!isRevealed && (
+                <Button variant="outline" className="w-full gap-2" onClick={() => setCodingOpen(true)}>
+                  {answers[currentQuestion.id] ? "Reopen code terminal" : "Open code terminal"}
+                </Button>
+              )}
+              {answers[currentQuestion.id] && !isRevealed && (
+                <p className="text-xs text-muted-foreground">
+                  {codingSolved.has(currentQuestion.id) ? "All test cases passed." : "Not all test cases have passed yet — you can reopen the terminal and try again."}
+                </p>
+              )}
+            </div>
+          )}
 
           {currentQuestion.type === "mcq" && currentQuestion.options && (
             <RadioGroup
