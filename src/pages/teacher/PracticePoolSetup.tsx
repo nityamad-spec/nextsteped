@@ -58,6 +58,7 @@ const PracticePoolSetup = () => {
   const [kind, setKind] = useState<PoolKind>("non_coding");
   const [count, setCount] = useState(10);
   const [difficulty, setDifficulty] = useState("mixed");
+  const [bloomLevel, setBloomLevel] = useState(3);
   const [language, setLanguage] = useState("python");
   const [rows, setRows] = useState<PoolRow[]>([]);
   const [privs, setPrivs] = useState<Record<string, PrivRow>>({});
@@ -115,7 +116,7 @@ const PracticePoolSetup = () => {
     for (let i = 0; i < batches.length; i++) {
       const b = batches[i];
       const { data, error } = await supabase.functions.invoke("generate-practice-pool", {
-        body: { courseId, kind, weekNumber: b.week, count: b.count, difficulty, language },
+        body: { courseId, kind, weekNumber: b.week, count: b.count, difficulty, bloomLevel, language },
       });
       if (error || data?.error) {
         let msg = data?.error as string | undefined;
@@ -148,6 +149,12 @@ const PracticePoolSetup = () => {
     const { error } = await supabase.from("practice_pool_questions").delete().eq("id", id);
     if (error) return toast({ title: "Couldn't delete", description: error.message, variant: "destructive" });
     setRows((r) => r.filter((x) => x.id !== id));
+  };
+
+  const updateMeta = async (id: string, patch: { difficulty?: number; bloom_level?: number }) => {
+    const { error } = await supabase.from("practice_pool_questions").update(patch).eq("id", id);
+    if (error) return toast({ title: "Couldn't update", description: error.message, variant: "destructive" });
+    setRows((r) => r.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   };
 
   const saveEdit = async () => {
