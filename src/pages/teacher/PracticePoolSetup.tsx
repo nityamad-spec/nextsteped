@@ -213,7 +213,12 @@ const PracticePoolSetup = () => {
           <div className="grid gap-4 sm:grid-cols-4">
             <div className="space-y-1.5">
               <Label>Question type</Label>
-              <Select value={kind} onValueChange={(v) => setKind(v as PoolKind)}>
+              <Select value={kind} onValueChange={(v) => {
+                const k = v as PoolKind;
+                setKind(k);
+                // Coding defaults to Medium / Bloom 3 per professor preference.
+                if (k === "coding" && difficulty === "mixed") setDifficulty("medium");
+              }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="non_coding">Non-coding (MCQ, True/False, Short answer)</SelectItem>
@@ -240,6 +245,19 @@ const PracticePoolSetup = () => {
                 </SelectContent>
               </Select>
             </div>
+            {kind === "coding" && (
+              <div className="space-y-1.5">
+                <Label>Bloom's level</Label>
+                <Select value={String(bloomLevel)} onValueChange={(v) => setBloomLevel(Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5, 6].map((b) => (
+                      <SelectItem key={b} value={String(b)}>{b} — {["Remember", "Understand", "Apply", "Analyze", "Evaluate", "Create"][b - 1]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {kind === "coding" && (
               <div className="space-y-1.5">
                 <Label>Language</Label>
