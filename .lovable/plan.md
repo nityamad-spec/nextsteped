@@ -26,3 +26,18 @@ Scope: upskilling courses, coding exercises in coding lab weeks (the ones with t
 - `CodingTerminalWidget.tsx`: when `capReached`, fetch review once and render the Review tabs (read-only `<pre>` blocks); also fetch right after the 3rd submit. Restyle editor pane header/border using semantic tokens (primary/accent), add aria-label "Your code".
 - `AIChat.tsx`: pass exercise id/bank already available; no DB migration needed.
 - Tests: widget tests for review rendering at cap, no fetch when attempts remain, editor label present; edge function unit check for the 403 path. Live check on the test student's already-used exercise only if it is at cap — no extra submissions without your OK.
+
+---
+
+# Part 2: Difficulty and Bloom's level for coding questions in the practice question pool
+
+## What the professor will see (Practice Question Pool step, Coding exercise selected)
+- **Difficulty**: Easy / Medium / Hard. Defaults to **Medium** for coding. The "Mixed" choice stays available for non-coding questions only.
+- **Bloom's level**: a new dropdown for levels 1–6 (Remember, Understand, Apply, Analyze, Evaluate, Create). Defaults to **3 – Apply**.
+- Every generated coding question gets exactly the level and difficulty picked.
+- Each coding question in the review list gets editable Difficulty and Bloom's controls, so the professor can re-tag a question before or after approving it.
+
+## Technical details
+- `PracticePoolSetup.tsx`: when kind switches to coding, set difficulty to "medium" (and hide "mixed"). Add `bloomLevel` state (default 3) and send it in the `generate-practice-pool` body. Add per-row inline selects that update `practice_pool_questions.bloom_level` / `difficulty` (easy 0.3, medium 0.5, hard 0.75). Course members already have update access.
+- `generate-practice-pool`: add optional `bloomLevel` (1–6) to the request. For coding, tell the AI to target that level and the chosen difficulty, then store the professor's values instead of the AI's. Non-coding behavior stays the same.
+- No database changes. Tests: the defaults (Medium, Bloom 3), sending the values on generate, and saving inline edits.
