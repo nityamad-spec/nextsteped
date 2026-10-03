@@ -28,8 +28,13 @@ const Body = z.object({
   weekNumber: z.number().int().min(0).max(60),
   count: z.number().int().min(1).max(10),
   difficulty: z.enum(["easy", "medium", "hard", "mixed"]).default("mixed"),
+  bloomLevel: z.number().int().min(1).max(6).default(3),
   language: z.enum(["python", "cpp", "java", "javascript"]).default("python"),
 });
+
+// Fixed difficulty value stamped on coding rows when the professor picks one
+// (mixed keeps the AI-assigned per-item value).
+const DIFF_VALUE: Record<string, number | null> = { easy: 0.3, medium: 0.5, hard: 0.8, mixed: null };
 
 const DIFF: Record<string, string> = {
   easy: "all easy (difficulty 0.2-0.35)",
