@@ -36,6 +36,15 @@ const Body = z.object({
 // (mixed keeps the AI-assigned per-item value).
 const DIFF_VALUE: Record<string, number | null> = { easy: 0.3, medium: 0.5, hard: 0.8, mixed: null };
 
+const BLOOM_DESC: Record<number, string> = {
+  1: "Remember — recall facts and basic concepts",
+  2: "Understand — explain ideas or concepts",
+  3: "Apply — use knowledge in a new situation",
+  4: "Analyze — draw connections among ideas",
+  5: "Evaluate — justify a decision or course of action",
+  6: "Create — produce new or original work",
+};
+
 const DIFF: Record<string, string> = {
   easy: "all easy (difficulty 0.2-0.35)",
   medium: "all medium (difficulty 0.45-0.6)",
@@ -213,7 +222,7 @@ ${avoid || "(none)"}`;
         rows.push({
           id, course_id: courseId, kind, format: "coding", concept_code: code,
           concept_id: conceptIdByCode.get(code.toLowerCase()) ?? null, week_number: weekNumber,
-          bloom_level: Math.round(clamp(e.bloom_level, 1, 6, 3)), difficulty: clamp(e.difficulty, 0, 1, 0.5),
+          bloom_level: bloomLevel, difficulty: DIFF_VALUE[difficulty] ?? clamp(e.difficulty, 0, 1, 0.5),
           title: String(e.title), question: String(e.problem_statement), language,
           starter_code: String(e.starter_code ?? ""), input_spec: String(e.input_spec ?? ""),
           output_spec: String(e.output_spec ?? ""), constraints: String(e.constraints ?? ""),
