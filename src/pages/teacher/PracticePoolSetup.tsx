@@ -388,7 +388,29 @@ const PracticePoolSetup = () => {
                     <Badge variant="outline" className="text-[10px]">Week {r.week_number}</Badge>
                     <Badge variant="outline" className="text-[10px] capitalize">{r.format.replace("_", " ")}</Badge>
                     {r.concept_code && <Badge variant="outline" className="text-[10px]">{r.concept_code}</Badge>}
-                    <span className="text-[10px] text-muted-foreground">Bloom {r.bloom_level} · difficulty {Number(r.difficulty).toFixed(2)}</span>
+                    {r.kind === "coding" ? (
+                      <span className="flex items-center gap-1.5">
+                        <Select value={String(r.bloom_level)} onValueChange={(v) => updateMeta(r.id, { bloom_level: Number(v) })}>
+                          <SelectTrigger className="h-6 w-24 px-1.5 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5, 6].map((b) => <SelectItem key={b} value={String(b)}>Bloom {b}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={Number(r.difficulty) <= 0.35 ? "0.3" : Number(r.difficulty) >= 0.7 ? "0.8" : "0.5"}
+                          onValueChange={(v) => updateMeta(r.id, { difficulty: Number(v) })}
+                        >
+                          <SelectTrigger className="h-6 w-24 px-1.5 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0.3">Easy</SelectItem>
+                            <SelectItem value="0.5">Medium</SelectItem>
+                            <SelectItem value="0.8">Hard</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">Bloom {r.bloom_level} · difficulty {Number(r.difficulty).toFixed(2)}</span>
+                    )}
                     <div className="flex-1" />
                     {r.status === "draft" ? (
                       <Button size="sm" variant="outline" className="h-7 gap-1" onClick={() => setStatus([r.id], "approved")}>
