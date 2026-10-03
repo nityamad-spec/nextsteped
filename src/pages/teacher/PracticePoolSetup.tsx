@@ -58,6 +58,7 @@ const PracticePoolSetup = () => {
   const [kind, setKind] = useState<PoolKind>("non_coding");
   const [count, setCount] = useState(10);
   const [difficulty, setDifficulty] = useState("mixed");
+  const [bloomLevel, setBloomLevel] = useState(3);
   const [language, setLanguage] = useState("python");
   const [rows, setRows] = useState<PoolRow[]>([]);
   const [privs, setPrivs] = useState<Record<string, PrivRow>>({});
@@ -115,7 +116,7 @@ const PracticePoolSetup = () => {
     for (let i = 0; i < batches.length; i++) {
       const b = batches[i];
       const { data, error } = await supabase.functions.invoke("generate-practice-pool", {
-        body: { courseId, kind, weekNumber: b.week, count: b.count, difficulty, language },
+        body: { courseId, kind, weekNumber: b.week, count: b.count, difficulty, bloomLevel, language },
       });
       if (error || data?.error) {
         let msg = data?.error as string | undefined;
@@ -148,6 +149,12 @@ const PracticePoolSetup = () => {
     const { error } = await supabase.from("practice_pool_questions").delete().eq("id", id);
     if (error) return toast({ title: "Couldn't delete", description: error.message, variant: "destructive" });
     setRows((r) => r.filter((x) => x.id !== id));
+  };
+
+  const updateMeta = async (id: string, patch: { difficulty?: number; bloom_level?: number }) => {
+    const { error } = await supabase.from("practice_pool_questions").update(patch).eq("id", id);
+    if (error) return toast({ title: "Couldn't update", description: error.message, variant: "destructive" });
+    setRows((r) => r.map((x) => (x.id === id ? { ...x, ...patch } : x)));
   };
 
   const saveEdit = async () => {
@@ -206,7 +213,12 @@ const PracticePoolSetup = () => {
           <div className="grid gap-4 sm:grid-cols-4">
             <div className="space-y-1.5">
               <Label>Question type</Label>
-              <Select value={kind} onValueChange={(v) => setKind(v as PoolKind)}>
+              <Select value={kind} onValueChange={(v) => {
+                const k = v as PoolKind;
+                setKind(k);
+                // Coding defaults to Medium / Bloom 3 per professor preference.
+                if (k === "coding" && difficulty === "mixed") setDifficulty("medium");
+              }}>
                 <SelectTrigger><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="non_coding">Non-coding (MCQ, True/False, Short answer)</SelectItem>
@@ -233,6 +245,19 @@ const PracticePoolSetup = () => {
                 </SelectContent>
               </Select>
             </div>
+            {kind === "coding" && (
+              <div className="space-y-1.5">
+                <Label>Bloom's level</Label>
+                <Select value={String(bloomLevel)} onValueChange={(v) => setBloomLevel(Number(v))}>
+                  <SelectTrigger><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5, 6].map((b) => (
+                      <SelectItem key={b} value={String(b)}>{b} — {["Remember", "Understand", "Apply", "Analyze", "Evaluate", "Create"][b - 1]}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             {kind === "coding" && (
               <div className="space-y-1.5">
                 <Label>Language</Label>
@@ -363,7 +388,29 @@ const PracticePoolSetup = () => {
                     <Badge variant="outline" className="text-[10px]">Week {r.week_number}</Badge>
                     <Badge variant="outline" className="text-[10px] capitalize">{r.format.replace("_", " ")}</Badge>
                     {r.concept_code && <Badge variant="outline" className="text-[10px]">{r.concept_code}</Badge>}
-                    <span className="text-[10px] text-muted-foreground">Bloom {r.bloom_level} · difficulty {Number(r.difficulty).toFixed(2)}</span>
+                    {r.kind === "coding" ? (
+                      <span className="flex items-center gap-1.5">
+                        <Select value={String(r.bloom_level)} onValueChange={(v) => updateMeta(r.id, { bloom_level: Number(v) })}>
+                          <SelectTrigger className="h-6 w-24 px-1.5 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            {[1, 2, 3, 4, 5, 6].map((b) => <SelectItem key={b} value={String(b)}>Bloom {b}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                        <Select
+                          value={Number(r.difficulty) <= 0.35 ? "0.3" : Number(r.difficulty) >= 0.7 ? "0.8" : "0.5"}
+                          onValueChange={(v) => updateMeta(r.id, { difficulty: Number(v) })}
+                        >
+                          <SelectTrigger className="h-6 w-24 px-1.5 text-[10px]"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="0.3">Easy</SelectItem>
+                            <SelectItem value="0.5">Medium</SelectItem>
+                            <SelectItem value="0.8">Hard</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </span>
+                    ) : (
+                      <span className="text-[10px] text-muted-foreground">Bloom {r.bloom_level} · difficulty {Number(r.difficulty).toFixed(2)}</span>
+                    )}
                     <div className="flex-1" />
                     {r.status === "draft" ? (
                       <Button size="sm" variant="outline" className="h-7 gap-1" onClick={() => setStatus([r.id], "approved")}>

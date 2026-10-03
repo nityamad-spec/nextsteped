@@ -28,8 +28,22 @@ const Body = z.object({
   weekNumber: z.number().int().min(0).max(60),
   count: z.number().int().min(1).max(10),
   difficulty: z.enum(["easy", "medium", "hard", "mixed"]).default("mixed"),
+  bloomLevel: z.number().int().min(1).max(6).default(3),
   language: z.enum(["python", "cpp", "java", "javascript"]).default("python"),
 });
+
+// Fixed difficulty value stamped on coding rows when the professor picks one
+// (mixed keeps the AI-assigned per-item value).
+const DIFF_VALUE: Record<string, number | null> = { easy: 0.3, medium: 0.5, hard: 0.8, mixed: null };
+
+const BLOOM_DESC: Record<number, string> = {
+  1: "Remember — recall facts and basic concepts",
+  2: "Understand — explain ideas or concepts",
+  3: "Apply — use knowledge in a new situation",
+  4: "Analyze — draw connections among ideas",
+  5: "Evaluate — justify a decision or course of action",
+  6: "Create — produce new or original work",
+};
 
 const DIFF: Record<string, string> = {
   easy: "all easy (difficulty 0.2-0.35)",
@@ -82,7 +96,7 @@ Deno.serve(async (req) => {
 
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return json({ error: "Invalid request", details: parsed.error.flatten().fieldErrors }, 400);
-    const { courseId, kind, weekNumber, difficulty, language } = parsed.data;
+    const { courseId, kind, weekNumber, difficulty, bloomLevel, language } = parsed.data;
     const count = kind === "coding" ? Math.min(parsed.data.count, 3) : parsed.data.count;
 
     const { data: member } = await admin.rpc("is_course_member", { _course_id: courseId, _user_id: u.user.id });
@@ -170,7 +184,7 @@ ${avoid || "(none)"}`;
       }
     } else {
       const out = await callAI(
-        `You write small runnable ${language} coding practice problems (stdin → stdout) for students. Output JSON {"exercises":[...]} only. Each: {"title":string,"problem_statement":string,"input_spec":string,"output_spec":string,"constraints":string,"starter_code":string (skeleton reading stdin, no solution),"reference_solution":string (complete, correct ${language} program reading stdin and printing to stdout),"visible_tests":[{"input":string,"expected_output":string}] (2-3),"hidden_tests":[{"input":string,"expected_output":string}] (3-5, include edge cases),"concept_code":string,"bloom_level":3-6,"difficulty":0-1}. Each exercise must use a clearly different scenario/theme. Expected outputs must be exactly what the reference solution prints.`,
+        `You write small runnable ${language} coding practice problems (stdin → stdout) for students. Output JSON {"exercises":[...]} only. Each: {"title":string,"problem_statement":string,"input_spec":string,"output_spec":string,"constraints":string,"starter_code":string (skeleton reading stdin, no solution),"reference_solution":string (complete, correct ${language} program reading stdin and printing to stdout),"visible_tests":[{"input":string,"expected_output":string}] (2-3),"hidden_tests":[{"input":string,"expected_output":string}] (3-5, include edge cases),"concept_code":string,"bloom_level":${bloomLevel},"difficulty":0-1}. Every exercise MUST be written at Bloom's taxonomy level ${bloomLevel} (${BLOOM_DESC[bloomLevel]}) — the task, scenario, and test complexity must match that level. Each exercise must use a clearly different scenario/theme. Expected outputs must be exactly what the reference solution prints.`,
         `${shared}\nGenerate exactly ${count} exercises.`,
       );
       const items = Array.isArray(out?.exercises) ? out.exercises : [];
@@ -208,7 +222,7 @@ ${avoid || "(none)"}`;
         rows.push({
           id, course_id: courseId, kind, format: "coding", concept_code: code,
           concept_id: conceptIdByCode.get(code.toLowerCase()) ?? null, week_number: weekNumber,
-          bloom_level: Math.round(clamp(e.bloom_level, 1, 6, 3)), difficulty: clamp(e.difficulty, 0, 1, 0.5),
+          bloom_level: bloomLevel, difficulty: DIFF_VALUE[difficulty] ?? clamp(e.difficulty, 0, 1, 0.5),
           title: String(e.title), question: String(e.problem_statement), language,
           starter_code: String(e.starter_code ?? ""), input_spec: String(e.input_spec ?? ""),
           output_spec: String(e.output_spec ?? ""), constraints: String(e.constraints ?? ""),
