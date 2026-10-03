@@ -87,7 +87,7 @@ Deno.serve(async (req) => {
 
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return json({ error: "Invalid request", details: parsed.error.flatten().fieldErrors }, 400);
-    const { courseId, kind, weekNumber, difficulty, language } = parsed.data;
+    const { courseId, kind, weekNumber, difficulty, bloomLevel, language } = parsed.data;
     const count = kind === "coding" ? Math.min(parsed.data.count, 3) : parsed.data.count;
 
     const { data: member } = await admin.rpc("is_course_member", { _course_id: courseId, _user_id: u.user.id });
@@ -175,7 +175,7 @@ ${avoid || "(none)"}`;
       }
     } else {
       const out = await callAI(
-        `You write small runnable ${language} coding practice problems (stdin → stdout) for students. Output JSON {"exercises":[...]} only. Each: {"title":string,"problem_statement":string,"input_spec":string,"output_spec":string,"constraints":string,"starter_code":string (skeleton reading stdin, no solution),"reference_solution":string (complete, correct ${language} program reading stdin and printing to stdout),"visible_tests":[{"input":string,"expected_output":string}] (2-3),"hidden_tests":[{"input":string,"expected_output":string}] (3-5, include edge cases),"concept_code":string,"bloom_level":3-6,"difficulty":0-1}. Each exercise must use a clearly different scenario/theme. Expected outputs must be exactly what the reference solution prints.`,
+        `You write small runnable ${language} coding practice problems (stdin → stdout) for students. Output JSON {"exercises":[...]} only. Each: {"title":string,"problem_statement":string,"input_spec":string,"output_spec":string,"constraints":string,"starter_code":string (skeleton reading stdin, no solution),"reference_solution":string (complete, correct ${language} program reading stdin and printing to stdout),"visible_tests":[{"input":string,"expected_output":string}] (2-3),"hidden_tests":[{"input":string,"expected_output":string}] (3-5, include edge cases),"concept_code":string,"bloom_level":${bloomLevel},"difficulty":0-1}. Every exercise MUST be written at Bloom's taxonomy level ${bloomLevel} (${BLOOM_DESC[bloomLevel]}) — the task, scenario, and test complexity must match that level. Each exercise must use a clearly different scenario/theme. Expected outputs must be exactly what the reference solution prints.`,
         `${shared}\nGenerate exactly ${count} exercises.`,
       );
       const items = Array.isArray(out?.exercises) ? out.exercises : [];
