@@ -202,3 +202,31 @@ describe("CodingTerminalWidget attempt cap (coding lab weeks)", () => {
     expect(screen.queryByText(/of 3/)).toBeNull();
   });
 });
+
+describe("CodingTerminalWidget review at cap", () => {
+  it("labels the editor clearly", () => {
+    setup();
+    expect(screen.getByText("Write your code here")).toBeInTheDocument();
+    expect(screen.getByLabelText("Your code")).toBeInTheDocument();
+  });
+
+  it("does not fetch the review while attempts remain", () => {
+    setup({ ...baseSubmission, attemptCap: 3 });
+    expect(invoke).not.toHaveBeenCalledWith("get-coding-review", expect.anything());
+  });
+
+  it("shows best attempt and correct solution after the cap", async () => {
+    invoke.mockImplementation((fn: string) =>
+      fn === "get-coding-review"
+        ? Promise.resolve({ data: { bestAttempt: { code: "print(1)", language: "python", score: 80, cases_passed: 5, cases_total: 6 }, referenceSolution: "print(7)", solutionLanguage: "python" }, error: null })
+        : Promise.resolve({ data: { error: "No attempts left", attemptsUsed: 3, bestScore: 80 }, error: null }),
+    );
+    setup({ ...baseSubmission, attemptCap: 3 });
+    fireEvent.click(screen.getByRole("button", { name: /submit solution/i }));
+    expect(await screen.findByText("Your best attempt")).toBeInTheDocument();
+    expect(screen.getByText("print(1)")).toBeInTheDocument();
+    expect(screen.getByText(/5 of 6 tests passed/)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("tab", { name: "Correct solution" }));
+    expect(screen.getByText("print(7)")).toBeInTheDocument();
+  });
+});
