@@ -33,6 +33,7 @@ import ConceptReview from "./pages/teacher/ConceptReview";
 import DiagnosticQuestionsSetup from "./pages/teacher/DiagnosticQuestionsSetup";
 import DsaQuestionsSetup from "./pages/teacher/DsaQuestionsSetup";
 import PracticePoolSetup from "./pages/teacher/PracticePoolSetup";
+import JobsSetup from "./pages/teacher/JobsSetup";
 import PublishEnrollment from "./pages/teacher/PublishEnrollment";
 import CourseDashboard from "./pages/teacher/CourseDashboard";
 
@@ -377,6 +378,7 @@ const App = () => (
                 <Route path="/teacher/setup/lesson-plan" element={<RequireTeacherPath><CourseCreation /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/dsa-questions" element={<RequireTeacherPath><DsaQuestionsSetup /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/practice-pool" element={<RequireTeacherPath><PracticePoolSetup /></RequireTeacherPath>} />
+                <Route path="/teacher/setup/jobs" element={<RequireTeacherPath><JobsSetup /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/diagnostic" element={<RequireTeacherPath><DiagnosticQuestionsSetup /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/exam-mode" element={<RequireTeacherPath><ExamMode /></RequireTeacherPath>} />
                 <Route path="/teacher/setup/project-lab" element={<RequireTeacherPath><ProjectLabSetup /></RequireTeacherPath>} />
