@@ -132,7 +132,6 @@ const CourseSetup = () => {
             "exam-mode": "Not Started",
         enrollment: "Not Started",
         jobs: "Not Started",
-    jobs: "Not Started",
       };
 
       // Card 1 (Upload): Complete only if the parsed syllabus JSON is BOTH
