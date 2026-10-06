@@ -127,6 +127,13 @@
       "when": 1790649687488,
       "tag": "0017_practice_pool",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1791304624987,
+      "tag": "0018_course_jobs",
+      "breakpoints": true
     }
   ]
 }

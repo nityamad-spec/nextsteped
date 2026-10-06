@@ -952,6 +952,45 @@ export type Database = {
         }
         Relationships: []
       }
+      concept_skill_tags: {
+        Row: {
+          concept_id: string
+          course_id: string
+          level: string
+          skill: string
+          updated_at: string
+        }
+        Insert: {
+          concept_id: string
+          course_id: string
+          level: string
+          skill: string
+          updated_at?: string
+        }
+        Update: {
+          concept_id?: string
+          course_id?: string
+          level?: string
+          skill?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "concept_skill_tags_concept_id_fkey"
+            columns: ["concept_id"]
+            isOneToOne: true
+            referencedRelation: "concepts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "concept_skill_tags_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       concepts: {
         Row: {
           concept_code: string
@@ -1102,6 +1141,215 @@ export type Database = {
             columns: ["published_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_job_refreshes: {
+        Row: {
+          course_id: string
+          error: string | null
+          fetched_count: number
+          finished_at: string | null
+          id: string
+          live_count: number
+          new_count: number
+          removed_count: number
+          started_at: string
+          started_by: string | null
+          status: string
+        }
+        Insert: {
+          course_id: string
+          error?: string | null
+          fetched_count?: number
+          finished_at?: string | null
+          id?: string
+          live_count?: number
+          new_count?: number
+          removed_count?: number
+          started_at?: string
+          started_by?: string | null
+          status?: string
+        }
+        Update: {
+          course_id?: string
+          error?: string | null
+          fetched_count?: number
+          finished_at?: string | null
+          id?: string
+          live_count?: number
+          new_count?: number
+          removed_count?: number
+          started_at?: string
+          started_by?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_job_refreshes_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_job_rejections: {
+        Row: {
+          course_id: string
+          created_at: string
+          external_key: string
+        }
+        Insert: {
+          course_id: string
+          created_at?: string
+          external_key: string
+        }
+        Update: {
+          course_id?: string
+          created_at?: string
+          external_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_job_rejections_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_job_source_secrets: {
+        Row: {
+          api_key: string
+          created_at: string
+          source_id: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          source_id: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          source_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_job_source_secrets_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: true
+            referencedRelation: "course_job_sources"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_job_sources: {
+        Row: {
+          active: boolean
+          course_id: string
+          created_at: string
+          has_key: boolean
+          id: string
+          name: string
+          source_type: string
+          url: string
+        }
+        Insert: {
+          active?: boolean
+          course_id: string
+          created_at?: string
+          has_key?: boolean
+          id?: string
+          name: string
+          source_type?: string
+          url: string
+        }
+        Update: {
+          active?: boolean
+          course_id?: string
+          created_at?: string
+          has_key?: boolean
+          id?: string
+          name?: string
+          source_type?: string
+          url?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_job_sources_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      course_jobs: {
+        Row: {
+          apply_url: string
+          company: string
+          course_id: string
+          external_key: string
+          first_seen_at: string
+          id: string
+          is_remote: boolean
+          last_seen_at: string
+          location: string
+          package: string | null
+          skills: Json
+          source_id: string | null
+          tier: string
+          title: string
+        }
+        Insert: {
+          apply_url: string
+          company?: string
+          course_id: string
+          external_key: string
+          first_seen_at?: string
+          id?: string
+          is_remote?: boolean
+          last_seen_at?: string
+          location?: string
+          package?: string | null
+          skills?: Json
+          source_id?: string | null
+          tier: string
+          title: string
+        }
+        Update: {
+          apply_url?: string
+          company?: string
+          course_id?: string
+          external_key?: string
+          first_seen_at?: string
+          id?: string
+          is_remote?: boolean
+          last_seen_at?: string
+          location?: string
+          package?: string | null
+          skills?: Json
+          source_id?: string | null
+          tier?: string
+          title?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "course_jobs_course_id_fkey"
+            columns: ["course_id"]
+            isOneToOne: false
+            referencedRelation: "courses"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "course_jobs_source_id_fkey"
+            columns: ["source_id"]
+            isOneToOne: false
+            referencedRelation: "course_job_sources"
             referencedColumns: ["id"]
           },
         ]
