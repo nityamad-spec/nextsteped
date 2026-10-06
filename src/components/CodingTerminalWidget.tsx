@@ -1,7 +1,13 @@
 import { useState, useMemo, useRef, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Terminal, Play, RotateCcw, X, Loader2, ChevronDown, ChevronUp, FileCode2, Bot, CheckCircle2, XCircle, ListChecks } from "lucide-react";
+import { Terminal, Play, RotateCcw, X, Loader2, ChevronDown, ChevronUp, FileCode2, Bot, CheckCircle2, XCircle, ListChecks, Pencil, Copy } from "lucide-react";
+
+interface CodingReview {
+  bestAttempt: { code: string; language: string | null; score: number | null; cases_passed: number | null; cases_total: number | null };
+  referenceSolution: string;
+  solutionLanguage: string | null;
+}
 import TerminalAssistantPanel from "@/components/student/TerminalAssistantPanel";
 import { supabase } from "@/integrations/supabase/client";
 import type { CodingTestCase } from "@/lib/codingExercises";
@@ -173,6 +179,34 @@ export default function CodingTerminalWidget({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [submission?.exerciseId, attemptCap]);
+
+  // At the cap: load best attempt + reference solution (server-gated).
+  const [review, setReview] = useState<CodingReview | null>(null);
+  const [reviewTab, setReviewTab] = useState<"best" | "solution">("best");
+  useEffect(() => {
+    if (!capReached || !submission || review || (submission.bank ?? "weekly") !== "weekly") return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase.functions.invoke("get-coding-review", {
+        body: { bank: "weekly", exerciseId: submission.exerciseId },
+      });
+      if (cancelled || error || !data || data.error) return;
+      setReview(data as CodingReview);
+    })();
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [capReached, submission?.exerciseId]);
+
+  const copyIntoEditor = (src: string, lang?: string | null) => {
+    const id = toTerminalLanguage(lang);
+    setLanguageId(id);
+    setCode(src);
+    toast({ title: "Copied into the editor", description: "Experiment freely — nothing is graded now." });
+  };
+  const isStarter = code === initialStarter && /TODO/i.test(code);
+
 
   const handleSubmit = async () => {
     if (!submission || isSubmitting || capReached) return;
@@ -442,10 +476,67 @@ export default function CodingTerminalWidget({
           </div>
         )}
 
+        {/* Review (attempts used up) */}
+        {capReached && review && (
+          <div className="border-b bg-muted/20" aria-label="Attempt review">
+            <div className="flex items-center gap-1 px-4 sm:px-6 pt-2">
+              {(["best", "solution"] as const).map((t) => (
+                <button
+                  key={t}
+                  type="button"
+                  role="tab"
+                  aria-selected={reviewTab === t}
+                  onClick={() => setReviewTab(t)}
+                  className={`px-3 py-1.5 text-sm rounded-t-md border border-b-0 ${
+                    reviewTab === t ? "bg-background text-foreground font-medium" : "text-muted-foreground hover:bg-muted/40"
+                  }`}
+                >
+                  {t === "best" ? "Your best attempt" : "Correct solution"}
+                </button>
+              ))}
+            </div>
+            <div className="bg-background border-t px-4 sm:px-6 py-3 space-y-2">
+              <div className="flex items-center gap-3 flex-wrap text-sm">
+                {reviewTab === "best" ? (
+                  <span className="text-muted-foreground">
+                    {review.bestAttempt.score != null && <>Score {review.bestAttempt.score} · </>}
+                    {review.bestAttempt.cases_passed ?? 0} of {review.bestAttempt.cases_total ?? 0} tests passed
+                  </span>
+                ) : (
+                  <span className="text-muted-foreground">Compare with your answer to see what was different.</span>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="ml-auto h-8 gap-2"
+                  onClick={() =>
+                    reviewTab === "best"
+                      ? copyIntoEditor(review.bestAttempt.code ?? "", review.bestAttempt.language)
+                      : copyIntoEditor(review.referenceSolution, review.solutionLanguage)
+                  }
+                >
+                  <Copy className="h-3.5 w-3.5" /> Copy into editor to experiment
+                </Button>
+              </div>
+              <pre className="max-h-56 overflow-auto rounded-md border bg-muted/30 font-mono text-sm leading-6 px-3 py-2 whitespace-pre">
+                {reviewTab === "best"
+                  ? review.bestAttempt.code || "(no code)"
+                  : review.referenceSolution || "The solution isn't available yet — ask your instructor."}
+              </pre>
+            </div>
+          </div>
+        )}
+
         {/* Editor pane */}
-        <div className="flex-[3] min-h-0 flex flex-col border-b">
-          <div className="px-4 sm:px-6 py-2 text-xs uppercase tracking-wide text-muted-foreground border-b bg-muted/40">
-            Editor
+        <div className="flex-[3] min-h-0 flex flex-col border-b-2 border-t-2 border-primary/40 focus-within:border-primary bg-primary/5 transition-colors">
+          <div className="px-4 sm:px-6 py-2 text-sm font-semibold text-primary border-b border-primary/30 bg-primary/10 flex items-center gap-2">
+            <Pencil className="h-4 w-4" />
+            <span>{capReached ? "Editor — practice only (not graded)" : "Write your code here"}</span>
+            {isStarter && (
+              <span className="ml-auto text-xs font-normal text-muted-foreground">
+                Replace the TODO lines with your solution.
+              </span>
+            )}
           </div>
           <textarea
             ref={textareaRef}
@@ -453,7 +544,8 @@ export default function CodingTerminalWidget({
             onChange={(e) => setCode(e.target.value)}
             onKeyDown={handleKeyDown}
             spellCheck={false}
-            className="flex-1 w-full resize-none bg-background text-foreground font-mono text-sm leading-6 px-4 sm:px-6 py-3 outline-none focus:ring-0 whitespace-pre"
+            aria-label="Your code"
+            className="flex-1 w-full resize-none bg-primary/5 text-foreground font-mono text-sm leading-6 px-4 sm:px-6 py-3 outline-none focus:ring-0 whitespace-pre"
             placeholder={`Write your ${language.label} code here…`}
           />
         </div>
