@@ -22,6 +22,7 @@ import { useCourseType } from "@/hooks/useCourseType";
 import { useCourseResources } from "@/hooks/useCourseResources";
 import { useCompMatrix } from "@/hooks/useCompMatrix";
 import CompensationMatrix from "@/components/student/CompensationMatrix";
+import StudentJobsSection from "@/components/student/StudentJobsSection";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -108,7 +109,7 @@ const StudentResources = () => {
   // Resources is skilling-pathway only.
   if (!isEmployment) return <Navigate to="/student/home" replace />;
 
-  const openSection = (key: "companies" | "compensation") =>
+  const openSection = (key: "companies" | "compensation" | "jobs") =>
     setSearchParams({ section: key });
   const backToOverview = () => setSearchParams({});
 
@@ -174,6 +175,24 @@ const StudentResources = () => {
           </p>
         </div>
 
+        <button
+          onClick={() => openSection("jobs")}
+          className="group w-full rounded-xl border border-primary/30 bg-primary/5 p-6 text-left transition-colors hover:border-primary/60"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="flex h-10 w-10 items-center justify-center rounded-lg bg-card text-primary">
+                <Briefcase className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="font-semibold">Jobs</p>
+                <p className="text-sm text-muted-foreground">Live entry-level openings for your target role</p>
+              </div>
+            </div>
+            <ArrowRight className="h-4 w-4 text-muted-foreground transition-transform group-hover:translate-x-0.5" />
+          </div>
+        </button>
+
         {loading ? (
           <div className="flex items-center gap-2 text-sm text-muted-foreground">
             <Loader2 className="h-4 w-4 animate-spin" /> Loading resources…
@@ -237,6 +256,11 @@ const StudentResources = () => {
         )}
       </div>
     );
+  }
+
+  /* ---------------- Jobs ---------------- */
+  if (section === "jobs") {
+    return <StudentJobsSection courseId={courseId} onBack={backToOverview} />;
   }
 
   /* ---------------- Companies ---------------- */

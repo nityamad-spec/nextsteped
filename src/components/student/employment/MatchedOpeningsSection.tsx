@@ -1,3 +1,5 @@
+import { Link } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { COMPANY_SPECIFIC_NOTES } from "@/lib/careerReadinessBriefing";
@@ -25,6 +27,9 @@ const MatchedOpeningsSection = () => (
           Explore example roles, expected pay, readiness, and company-specific interview guidance.
         </p>
       </div>
+      <Link to="/student/resources?section=jobs" className="inline-flex flex-none items-center gap-1 text-sm font-medium text-primary hover:underline">
+        See live jobs <ArrowRight className="h-4 w-4" />
+      </Link>
     </div>
 
     <div className="grid grid-cols-1 gap-4 md:grid-cols-3">

@@ -17,6 +17,7 @@ import {
   FlaskConical,
   Sparkles,
   ListChecks,
+  Briefcase,
 } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useTeacherCourseId } from "@/hooks/useTeacherCourseId";
@@ -36,6 +37,7 @@ interface CardDef {
   path: string;
   /** Optional steps never block setup completion. */
   optional?: boolean;
+  isNew?: boolean;
 }
 
 const CARDS: CardDef[] = [
@@ -49,6 +51,7 @@ const CARDS: CardDef[] = [
   { id: "diagnostic", title: "Approve Diagnostic Quiz", description: "Review and approve the AI-generated diagnostic quiz for your students.", icon: Brain, path: "/teacher/setup/diagnostic" },
   { id: "exam-mode", title: "Exam Mode Settings", description: "Set up and customise the exam mode experience for your students.", icon: GraduationCap, path: "/teacher/setup/exam-mode" },
   { id: "enrollment", title: "Enrollment & Course Settings", description: "Configure your course schedule, sections, enrollment code, and student roster.", icon: UserPlus, path: "/teacher/setup/enrollment" },
+  { id: "jobs", title: "Jobs", description: "Employment pathway only. Optional. Choose job sources, check curriculum coverage, and refresh the jobs students see.", icon: Briefcase, path: "/teacher/setup/jobs", optional: true, isNew: true },
 ];
 
 // Per-teacher per-step opened/completed state lives in `teacher_setup_progress`
@@ -93,6 +96,7 @@ const CourseSetup = () => {
     diagnostic: "Not Started",
     "exam-mode": "Not Started",
     enrollment: "Not Started",
+    jobs: "Not Started",
   });
   const [loading, setLoading] = useState(true);
 
@@ -111,6 +115,7 @@ const CourseSetup = () => {
       diagnostic: "Not Started",
         "exam-mode": "Not Started",
       enrollment: "Not Started",
+    jobs: "Not Started",
     });
     const fetchStatuses = async () => {
       setLoading(true);
@@ -126,6 +131,8 @@ const CourseSetup = () => {
         diagnostic: "Not Started",
             "exam-mode": "Not Started",
         enrollment: "Not Started",
+        jobs: "Not Started",
+    jobs: "Not Started",
       };
 
       // Card 1 (Upload): Complete only if the parsed syllabus JSON is BOTH
@@ -243,6 +250,9 @@ const CourseSetup = () => {
       }
 
       // Enrollment: completion is explicit via the save handler.
+      if (completed.jobs) next.jobs = "Complete";
+      else if (opened.jobs) next.jobs = "In Progress";
+
       if (completed.enrollment) next.enrollment = "Complete";
       else if (opened.enrollment) next.enrollment = "In Progress";
 
@@ -310,7 +320,7 @@ const CourseSetup = () => {
     // The Project Lab step is opt-in per teacher: admins grant it explicitly.
     if (c.id === "project-lab") return permReady && isExactlyGranted(PROJECT_LAB_SETUP_PATH);
     // Soft Skills + DSA Questions exist only for employment-pathway courses.
-    if (c.id === "soft-skills" || c.id === "dsa-questions" || c.id === "practice-pool") return typeReady && isEmployment;
+    if (c.id === "soft-skills" || c.id === "dsa-questions" || c.id === "practice-pool" || c.id === "jobs") return typeReady && isEmployment;
     return true;
   });
 
@@ -345,7 +355,10 @@ const CourseSetup = () => {
                   }`}>
                     {locked ? <Lock className="h-5 w-5" /> : <Icon className="h-5 w-5" />}
                   </div>
-                  <span className="text-xs font-mono text-muted-foreground">Step {idx + 1}</span>
+                  <span className="flex items-center gap-1.5">
+                    {c.isNew && <Badge className="px-1.5 py-0 text-[10px]">New</Badge>}
+                    <span className="text-xs font-mono text-muted-foreground">Step {idx + 1}</span>
+                  </span>
                 </div>
                 <h3 className="font-semibold text-base text-foreground mb-1.5 leading-tight">{c.title}</h3>
                 <p className="text-xs text-muted-foreground leading-relaxed flex-1">
