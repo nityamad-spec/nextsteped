@@ -76,3 +76,11 @@ export function computeCoverage(jobs: CoverageJob[], tags: { skill: string; leve
 }
 
 export const TIER_LABEL: Record<JobTier, string> = { accessible: "Accessible", moderate: "Moderate", competitive: "Competitive" };
+
+/** Student-facing tier copy (professor labels stay in TIER_LABEL). */
+export const STUDENT_TIER: Record<JobTier, { name: string; competition: string; bars: number; desc: string }> = {
+  accessible: { name: "Apply first", competition: "Low competition", bars: 1, desc: "Fewer skills asked for, and companies that hire freshers in numbers. Your best chance at a first offer." },
+  moderate: { name: "Worth a strong try", competition: "Medium competition", bars: 2, desc: "Expect a skills test or portfolio review. Have a project ready to show." },
+  competitive: { name: "Long shot", competition: "High competition", bars: 3, desc: "Well-known employers or very large applicant pools. Worth applying, but don't rely on these alone." },
+};
+export const TIER_ORDER: JobTier[] = ["accessible", "moderate", "competitive"];
