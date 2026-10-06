@@ -1,0 +1,1 @@
+- Course job sources: API keys live only in course_job_source_secrets (service-role only) and all source writes/refreshes go through edge functions that verify course membership — keeps keys server-side and blocks unsafe URLs.
