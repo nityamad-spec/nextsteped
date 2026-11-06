@@ -390,9 +390,10 @@ const StudentLearningPath = () => {
     : 0;
 
   // Current unit = first unit whose quiz hasn't been taken, else the date-derived week.
-  const firstUnfinished = lessonPlan.find((w) => !takenQuizzes[w.day]);
-  const focusUnit = firstUnfinished
-    ?? lessonPlan.find((w) => w.day === currentWeek)
+  // Current unit = first unit below the mastery goal (same rule as unlocking),
+  // else the last unit. Banner, open box and "You're here" all use this.
+  const focusUnit =
+    lessonPlan.find((w) => (readinessByUnit[w.day] ?? 0) < READINESS_THRESHOLD)
     ?? lessonPlan[lessonPlan.length - 1]
     ?? null;
   const displayedUnit = focusUnit?.day ?? Math.max(1, Math.min(totalWeeks, currentWeek));
@@ -439,10 +440,7 @@ const StudentLearningPath = () => {
 
   // Students move through the units in order: the first unit not yet at the
   // mastery goal is the only one they can act on. Later units stay readable.
-  const activeUnit =
-    lessonPlan.find((w) => (readinessByUnit[w.day] ?? 0) < READINESS_THRESHOLD)?.day ??
-    lessonPlan[lessonPlan.length - 1]?.day ??
-    null;
+  const activeUnit = focusUnit?.day ?? null;
   const isUnitLocked = (day: number) => activeUnit !== null && day > activeUnit;
 
   /** Rail + detail panel for a set of unit numbers (whole course, or one stage). */
